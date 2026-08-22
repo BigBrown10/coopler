@@ -123,8 +123,15 @@ export default {
     const slug = resolveSlug(entry);
     if (!slug) throw new Error(`smartrecruiters: cannot derive API URL for ${entry.name}`);
 
+    // Honor the ctx.maxPages pagination hint (the portal health probe passes 1);
+    // a real sweep keeps the SR_MAX_PAGES safety cap.
+    const pageLimit = Math.min(
+      SR_MAX_PAGES,
+      Number.isInteger(ctx?.maxPages) && ctx.maxPages > 0 ? ctx.maxPages : Infinity,
+    );
+
     const all = [];
-    for (let page = 0; page < SR_MAX_PAGES; page++) {
+    for (let page = 0; page < pageLimit; page++) {
       const apiUrl = buildPostingsUrl(slug, page * SR_PAGE_SIZE);
       assertSmartRecruitersUrl(apiUrl);
       const json = await ctx.fetchJson(apiUrl, { redirect: 'error' });

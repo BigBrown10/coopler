@@ -371,6 +371,30 @@ try {
     }
   }
 
+  // ctx.maxPages also caps the listing walk itself, not just enrichment:
+  // a health probe reads one page even when the board keeps serving full pages.
+  {
+    const fullPage = {
+      content: Array.from({ length: 100 }, (_, i) => ({ id: `P${i}`, name: `Role ${i}` })),
+    };
+    let probeListCalls = 0;
+    await sr.fetch(
+      { name: 'CappedCo', careers_url: 'https://careers.smartrecruiters.com/cappedco' },
+      {
+        maxPages: 1,
+        fetchJson: async (url) => {
+          if (url.includes('/postings?')) probeListCalls++;
+          return fullPage;
+        },
+      },
+    );
+    if (probeListCalls === 1) {
+      pass('fetch() honors the ctx.maxPages hint and stops after one list page');
+    } else {
+      fail(`ctx.maxPages=1: ${probeListCalls} list calls (expected 1)`);
+    }
+  }
+
   // detailLimit caps the per-sweep detail budget on a large board.
   {
     const bigBoardIds = Array.from({ length: 40 }, (_, i) => `ID-${i}`);
