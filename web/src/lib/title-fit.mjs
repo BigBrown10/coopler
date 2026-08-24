@@ -22,6 +22,18 @@
  *       null when either side yields no usable tokens (callers omit the chip).
  */
 
+/**
+ * @typedef {Object} TitleFit
+ * @property {'strong'|'related'|'weak'} band Coarse triage word — never a percentage in the UI.
+ * @property {number} score Rounded overlap ratio (tests/debugging only).
+ */
+
+/**
+ * @param {string|undefined|null} title Posting title as printed by the scanner.
+ * @param {string[]|undefined|null} targets Profile target-role phrases.
+ * @returns {TitleFit|null} Best band across targets, or null when nothing usable.
+ */
+
 // Letters/digits across scripts, plus +#/. so c#, c++, node.js, .net survive.
 const TOKEN_RE = /[\p{L}\p{N}+#.]+/gu;
 

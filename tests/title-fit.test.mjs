@@ -20,12 +20,16 @@ try {
     fail(`expected strong/1 for 'Staff Engineer, Platform': ${JSON.stringify(r)}`);
   }
 
-  // Seniority words must not dilute the ratio.
+  // Seniority words must not dilute the ratio — from EITHER side. A broken
+  // filter on the title side would cap 'Senior Staff Platform Engineer' below
+  // 1; a broken filter on the TARGET side ('senior platform engineer' counting
+  // 3 tokens) would do the same from the other direction (CodeRabbit, #3261).
   const rs = titleFit('Senior Staff Platform Engineer', ['platform engineer']);
-  if (rs && rs.band === 'strong') {
-    pass('seniority words (senior/staff) excluded from the ratio');
+  const rs2 = titleFit('Platform Engineer', ['senior platform engineer']);
+  if (rs && rs.band === 'strong' && rs.score === 1 && rs2 && rs2.score === 1) {
+    pass('seniority words excluded on both title and target side');
   } else {
-    fail(`seniority dilution: ${JSON.stringify(rs)}`);
+    fail(`seniority dilution: title-side=${JSON.stringify(rs)} target-side=${JSON.stringify(rs2)}`);
   }
 
   // Partial overlap → related; unrelated → weak (still returned, never hidden).

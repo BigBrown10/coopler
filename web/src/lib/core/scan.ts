@@ -59,10 +59,12 @@ function loadProfileTargets(): string[] {
 }
 
 /** Spread-in helper: {} when there is no band (keeps `fit` truly absent rather
- *  than explicitly undefined, so the offer objects stay JSON-clean). */
+ *  than explicitly undefined, so the offer objects stay JSON-clean). titleFit
+ *  is plain JS, so its band arrives typed as string — narrowed here to the
+ *  FitBand union the offer type promises. */
 function fitField(title: string, targets: string[]): { fit: { band: FitBand; score: number } } | Record<string, never> {
   const f = titleFit(title, targets);
-  return f ? { fit: f } : {};
+  return f ? { fit: { band: f.band as FitBand, score: f.score } } : {};
 }
 
 function parseOfferLine(source: string, date: string, rest: string): Omit<DiscoveredOffer, "url"> | null {
