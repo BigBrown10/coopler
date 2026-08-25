@@ -49,7 +49,12 @@ const SENIORITY = new Set([
 
 function tokens(text) {
   const raw = String(text ?? "").toLowerCase().match(TOKEN_RE) ?? [];
-  return raw.filter((t) => t.length > 1 && !SENIORITY.has(t));
+  return raw
+    // TOKEN_RE keeps sentence-ending periods so dotted names survive intact
+    // (node.js, .net); strip only TERMINAL dots afterwards, or "Engineer."
+    // stops equalling "engineer" (CodeRabbit, #3261). Internal/leading dots stay.
+    .map((t) => t.replace(/\.+$/, ""))
+    .filter((t) => t.length > 1 && !SENIORITY.has(t));
 }
 
 export function titleFit(title, targets) {

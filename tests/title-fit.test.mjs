@@ -79,6 +79,18 @@ try {
     fail(`single-token target: ${JSON.stringify(rg)}`);
   }
 
+  // Terminal periods are punctuation, not part of the role name — but dotted
+  // names must keep their internal/leading dots (CodeRabbit follow-up, #3261).
+  const rpd = titleFit('Platform Engineer.', ['platform engineer']);
+  const rdot = titleFit('Node.js Engineer', ['node.js engineer']);
+  const rdnet = titleFit('.NET Developer', ['.net developer']);
+  if (rpd && rpd.score === 1 && rpd.band === 'strong'
+      && rdot && rdot.score === 1 && rdnet && rdnet.score === 1) {
+    pass('trailing periods stripped; node.js / .net stay whole');
+  } else {
+    fail(`terminal-period handling: ${JSON.stringify([rpd, rdot, rdnet])}`);
+  }
+
   // Determinism — same inputs, same object (scan re-runs must be stable).
   const d1 = titleFit('Senior Platform Engineer', ['platform engineer', 'data engineer']);
   const d2 = titleFit('Senior Platform Engineer', ['platform engineer', 'data engineer']);
