@@ -25,10 +25,11 @@
  * Run: node sync-batch-input.mjs [--dry-run] [--pipeline <path>] [--input <path>] [--state <path>]
  */
 
-import { readFileSync, writeFileSync, existsSync, appendFileSync } from 'fs';
-import { join, resolve, relative, isAbsolute } from 'path';
-import { getCareerOpsRoot } from './path-resolver.mjs';
+import { readFileSync, writeFileSync, existsSync, appendFileSync, mkdirSync } from 'fs';
+import { join, dirname, resolve, relative, isAbsolute } from 'path';
+import { isIP } from 'net';
 import { isMainModule } from './lib/is-main-module.mjs';
+import { getCareerOpsRoot } from './path-resolver.mjs';
 
 const CAREER_OPS = getCareerOpsRoot();
 
@@ -43,6 +44,92 @@ const PENDING_ITEM_RE = /^- \[ \]\s+/;
 export function lineUrl(body) {
   const i = body.indexOf(' |');
   return (i >= 0 ? body.slice(0, i) : body).trim();
+}
+
+function parseIpv4Part(part) {
+  if (/^0x[0-9a-f]+$/i.test(part)) return Number.parseInt(part.slice(2), 16);
+  if (/^0[0-7]+$/.test(part)) return Number.parseInt(part, 8);
+  if (/^\d+$/.test(part)) return Number.parseInt(part, 10);
+  return NaN;
+}
+
+function parseIpv4Hostname(host) {
+  const parts = String(host || '').split('.');
+  if (parts.length < 1 || parts.length > 4 || parts.some((part) => part === '')) return null;
+  if (!parts.every((part) => /^(?:0x[0-9a-f]+|0[0-7]+|\d+)$/i.test(part))) return null;
+  const nums = parts.map(parseIpv4Part);
+  if (nums.some((num) => !Number.isSafeInteger(num) || num < 0)) return null;
+  const prefix = nums.slice(0, -1);
+  if (prefix.some((num) => num > 255)) return null;
+  const last = nums.at(-1);
+  const remainingBytes = 5 - nums.length;
+  if (last > 256 ** remainingBytes - 1) return null;
+  if (nums.length === 1) return [(last >>> 24) & 255, (last >>> 16) & 255, (last >>> 8) & 255, last & 255];
+  if (nums.length === 2) return [nums[0], (last >>> 16) & 255, (last >>> 8) & 255, last & 255];
+  if (nums.length === 3) return [nums[0], nums[1], (last >>> 8) & 255, last & 255];
+  return nums;
+}
+
+function parseIpv4MappedIpv6(host) {
+  const normalized = String(host || '').toLowerCase();
+  const dotted = normalized.match(/^(?:0:0:0:0:0:ffff:|::ffff:)(\d{1,3}(?:\.\d{1,3}){3})$/);
+  if (dotted) return parseIpv4Hostname(dotted[1]);
+  const hex = normalized.match(/^(?:0:0:0:0:0:ffff:|::ffff:)([0-9a-f]{1,4}):([0-9a-f]{1,4})$/);
+  if (!hex) return null;
+  const high = Number.parseInt(hex[1], 16);
+  const low = Number.parseInt(hex[2], 16);
+  if (high > 0xffff || low > 0xffff) return null;
+  return [(high >>> 8) & 255, high & 255, (low >>> 8) & 255, low & 255];
+}
+
+function isPrivateIpv4(parts) {
+  const [a, b] = parts;
+  return (
+    a === 0 ||
+    a === 10 ||
+    a === 127 ||
+    (a === 100 && b >= 64 && b <= 127) ||
+    (a === 169 && b === 254) ||
+    (a === 172 && b >= 16 && b <= 31) ||
+    (a === 192 && b === 168) ||
+    (a === 198 && (b === 18 || b === 19)) ||
+    a >= 224
+  );
+}
+
+function isPrivateOrInternalHostname(hostname) {
+  const host = String(hostname || '').toLowerCase().replace(/^\[|\]$/g, '');
+  if (!host) return true;
+  if (host === 'localhost' || host.endsWith('.localhost')) return true;
+  if (!host.includes('.') && isIP(host) === 0) return true;
+  if (/\.(?:local|internal|lan|home|test|invalid)$/i.test(host)) return true;
+
+  const ipv4 = parseIpv4Hostname(host);
+  if (ipv4) return isPrivateIpv4(ipv4);
+
+  const version = isIP(host);
+  if (version !== 6) return false;
+  if (host === '::1' || host === '0:0:0:0:0:0:0:1') return true;
+
+  const mappedIpv4 = parseIpv4MappedIpv6(host);
+  if (mappedIpv4) return isPrivateIpv4(mappedIpv4);
+
+  const firstHextet = host.split(':')[0];
+  if (/^f[cd][0-9a-f]{0,2}$/i.test(firstHextet)) return true;
+  const first = Number.parseInt(firstHextet, 16);
+  return Number.isFinite(first) && first >= 0xfe80 && first <= 0xfebf;
+}
+
+export function isSafePublicHttpUrl(raw) {
+  let url;
+  try {
+    url = new URL(String(raw || ''));
+  } catch {
+    return false;
+  }
+  if (url.protocol !== 'https:' && url.protocol !== 'http:') return false;
+  if (url.username || url.password) return false;
+  return !isPrivateOrInternalHostname(url.hostname);
 }
 
 // Extract labeled segments from a pipeline row body ("| label: value").
@@ -90,7 +177,7 @@ export function parsePending(text) {
     if (!PENDING_ITEM_RE.test(lines[i])) continue;
     const body = lines[i].replace(PENDING_ITEM_RE, '');
     const url = lineUrl(body);
-    if (!url || !url.startsWith('http')) continue;
+    if (!isSafePublicHttpUrl(url)) continue;
     out.push({ url, company: lineCompany(body), notes: buildNotes(extractLabels(body)) });
   }
   return out;
@@ -122,13 +209,19 @@ export function urlsFromTsv(text, urlCol) {
  * @param {Set<string>} existingUrls
  * @returns {Array<{url:string, company:string, notes:string, row:string}>}
  */
+function tsvCell(value) {
+  return String(value || '').replace(/[\t\r\n]+/g, ' ').trim();
+}
+
 export function planBatchRows(pending, existingUrls) {
   const rows = [];
+  const accepted = new Set();
   for (const e of pending) {
-    if (existingUrls.has(e.url)) continue;
-    const topic = e.company || '';
-    const notes = e.notes || '';
-    rows.push({ ...e, row: `${e.url}\t${SOURCE}\t${topic}\t${notes}` });
+    if (existingUrls.has(e.url) || accepted.has(e.url)) continue;
+    accepted.add(e.url);
+    const topic = tsvCell(e.company);
+    const notes = tsvCell(e.notes);
+    rows.push({ ...e, company: topic, notes, row: `${e.url}\t${SOURCE}\t${topic}\t${notes}` });
   }
   return rows;
 }
@@ -153,7 +246,7 @@ if (isMainModule(import.meta.url)) {
     const abs = resolve(inputPath || fallbackPath);
     const rel = relative(CAREER_OPS, abs);
     if (rel.startsWith('..') || isAbsolute(rel)) {
-      console.error(`Invalid ${flag}: path must stay inside the repository (${abs})`);
+      console.error(`Invalid ${flag}: path must stay inside the career-ops root (${abs})`);
       process.exit(1);
     }
     return abs;
@@ -206,6 +299,7 @@ if (isMainModule(import.meta.url)) {
   }
 
   if (!existsSync(INPUT_FILE)) {
+    mkdirSync(dirname(INPUT_FILE), { recursive: true });
     writeFileSync(INPUT_FILE, `# batch-input.tsv — generated by sync-batch-input.mjs\n# url<tab>source<tab>topic<tab>notes\n`);
   }
 
