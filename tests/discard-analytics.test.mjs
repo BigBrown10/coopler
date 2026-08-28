@@ -58,7 +58,10 @@ try {
   const summary = renderSummary(agg, 10, '2026-08-25', '2026-08-26');
   check('summary includes total', summary.includes('Total discards: 5'));
   check('summary lists title_mismatch URLs', summary.includes('Top title_mismatch URLs'));
-  check('summary lists raw URLs, not a suggested keyword', summary.includes('https://example.com/job1'));
+  check(
+    'summary lists raw URLs, not a suggested keyword',
+    summary.includes(`  1. ${interactive[0].url}`),
+  );
   check('summary does not infer a keyword', !/add keyword/i.test(summary));
 
   // ── filters (mirror the CLI's --since / --reason behaviour) ──
