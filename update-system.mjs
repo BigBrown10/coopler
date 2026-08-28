@@ -50,6 +50,8 @@ const SYSTEM_PATHS = [
   'generate-pdf.mjs',
   'merge-tracker.mjs',
   'verify-pipeline.mjs',
+  'sync-batch-input.mjs',
+  'reconcile-pipeline.mjs',
   'dedup-tracker.mjs',
   'normalize-statuses.mjs',
   'cv-sync-check.mjs',
