@@ -26,10 +26,11 @@
  */
 
 import { readFileSync, writeFileSync, existsSync, appendFileSync } from 'fs';
-import { join, dirname, resolve, relative, isAbsolute } from 'path';
-import { fileURLToPath } from 'url';
+import { join, resolve, relative, isAbsolute } from 'path';
+import { getCareerOpsRoot } from './path-resolver.mjs';
+import { isMainModule } from './lib/is-main-module.mjs';
 
-const CAREER_OPS = dirname(fileURLToPath(import.meta.url));
+const CAREER_OPS = getCareerOpsRoot();
 
 export const SOURCE = 'pipeline';
 
@@ -134,7 +135,7 @@ export function planBatchRows(pending, existingUrls) {
 
 // ── CLI entry point ────────────────────────────────────────────────────────
 
-if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1])) {
+if (isMainModule(import.meta.url)) {
   const DRY_RUN = process.argv.includes('--dry-run');
 
   if (process.argv.includes('-h') || process.argv.includes('--help')) {
