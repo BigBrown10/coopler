@@ -14,7 +14,7 @@ console.log('\nsync-batch-input — pipeline "Pending" -> batch-input.tsv');
 
 try {
   const mod = await import(pathToFileURL(join(ROOT, 'sync-batch-input.mjs')).href);
-  const { parsePending, urlsFromTsv, planBatchRows, buildNotes, lineUrl, lineCompany, extractLabels, isSafePublicHttpUrl, PENDING_RE } = mod;
+  const { parsePending, urlsFromTsv, maxTsvId, planBatchRows, buildNotes, lineUrl, lineCompany, extractLabels, isSafePublicHttpUrl, PENDING_RE } = mod;
   const check = (label, cond) => (cond ? pass(label) : fail(label));
 
   // ── section-header matching (mirrors reconcile-pipeline's localized PENDING_RE) ──
@@ -73,25 +73,31 @@ try {
   ].join('\n'));
   check('unsafe pending URLs are filtered before batch rows are planned', filtered.length === 1 && filtered[0].url === 'https://example.com/safe');
 
-  // ── urlsFromTsv (existing input + state) ──
+  // ── urlsFromTsv / maxTsvId (existing input + state) ──
   const inputTsv = [
     '# batch-input.tsv header comment',
-    'https://queued.example/1\tsource\ttopic\tnotes',
-    'https://queued.example/2\tpipeline\tCo\t',
+    'id\turl\tsource\tnotes',
+    '1\thttps://queued.example/1\tpipeline\tpriority',
+    '2\thttps://queued.example/2\tGreenhouse\t',
     '',
   ].join('\n');
-  const inputUrls = urlsFromTsv(inputTsv, 0);
-  check('existing input URLs are collected', inputUrls.has('https://queued.example/1'));
-  check('header comment and blanks are ignored', inputUrls.size === 2);
+  const inputUrls = urlsFromTsv(inputTsv, 1);
+  check('existing input URLs are collected from the url column', inputUrls.has('https://queued.example/1'));
+  check('header comment, header row, and blanks are ignored', inputUrls.size === 2);
+  check('maxTsvId reads the largest numeric id', maxTsvId(inputTsv) === 2);
+  check('maxTsvId ignores the header row', maxTsvId('id\turl\n7\tx\n') === 7);
+  check('maxTsvId is 0 with no numeric ids', maxTsvId('# only comments\n') === 0);
 
   const stateTsv = [
     'id\turl\tstatus\tstarted_at\tcompleted_at\treport_num\tscore\terror\tretries',
     '1\thttps://done.example/1\tcompleted\t2026-08-25\t2026-08-25\t1\t3.5\t\t0',
+    '5\thttps://done.example/5\tcompleted\t2026-08-26\t2026-08-26\t1\t4\t\t0',
   ].join('\n');
   const stateUrls = urlsFromTsv(stateTsv, 1);
   check('batch-state URLs are collected from column 2', stateUrls.has('https://done.example/1'));
+  check('maxTsvId covers state rows too', maxTsvId(stateTsv) === 5);
 
-  // ── planBatchRows: dedupe + row format ──
+  // ── planBatchRows: dedupe + numeric-id row format ──
   const pending = parsePending([
     '## Pending',
     '- [ ] https://new.example/1 | Acme | Role',
@@ -100,23 +106,27 @@ try {
     '- [ ] https://new.example/2', // bare
   ].join('\n'));
   const existing = new Set([...inputUrls, ...stateUrls]);
-  const rows = planBatchRows(pending, existing);
+  const startedId = Math.max(maxTsvId(inputTsv), maxTsvId(stateTsv)) + 1;
+  const rows = planBatchRows(pending, existing, startedId);
   check('queued and processed URLs are deduped', rows.length === 3);
-  check('a fresh entry carries url/source/topic/notes tabs', rows[0].row === 'https://new.example/1\tpipeline\tAcme\t');
+  check('ids are allocated sequentially after the highest existing id', rows[0].id === 6 && rows[2].id === 8);
+  check('a fresh entry carries id/url/source/notes tabs', rows[0].row === '6\thttps://new.example/1\tpipeline\t');
   check('labelled segments ride into notes', rows.some((r) => r.notes === 'trust: 90 suspicious_domain'));
-  check('a bare row keeps empty company and notes', rows.some((r) => r.row === 'https://new.example/2\tpipeline\t\t'));
+  check('a bare row keeps empty notes', rows.some((r) => r.row === '8\thttps://new.example/2\tpipeline\t'));
   check('every row uses the pipeline source', rows.every((r) => r.row.includes('\tpipeline\t')));
+  check('every id is a positive integer', rows.every((r) => Number.isInteger(r.id) && r.id > 0));
 
   const duplicateRows = planBatchRows([
     { url: 'https://dupe.example/1', company: 'A', notes: '' },
     { url: 'https://dupe.example/1', company: 'B', notes: '' },
-  ], new Set());
+  ], new Set(), 10);
   check('duplicates inside one pending section are queued once', duplicateRows.length === 1);
+  check('startId honours an explicit starting id', duplicateRows[0].id === 10);
 
   const unsafeFieldRows = planBatchRows([
     { url: 'https://fields.example/1', company: 'Acme\tInc', notes: 'line1\nline2\rline3' },
-  ], new Set());
-  check('embedded tabs/newlines are sanitized before TSV row construction', unsafeFieldRows[0].row === 'https://fields.example/1\tpipeline\tAcme Inc\tline1 line2 line3');
+  ], new Set(), 3);
+  check('embedded tabs/newlines are sanitized before TSV row construction', unsafeFieldRows[0].row === '3\thttps://fields.example/1\tpipeline\tline1 line2 line3');
   check('sanitized batch rows remain four columns', unsafeFieldRows[0].row.split('\t').length === 4);
 } catch (err) {
   fail(`sync-batch-input test suite threw: ${err?.message ?? err}`);
