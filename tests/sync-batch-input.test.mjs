@@ -66,6 +66,16 @@ try {
   check('IPv4 shorthand loopback URLs are rejected', !isSafePublicHttpUrl('http://2130706433/jobs'));
   check('IPv6 loopback URLs are rejected', !isSafePublicHttpUrl('http://[::1]/jobs'));
   check('local/internal hostnames are rejected', !isSafePublicHttpUrl('https://metadata.google.internal/compute'));
+  check('IPv4-compatible IPv6 loopback is rejected', !isSafePublicHttpUrl('http://[::127.0.0.1]/'));
+  check('normalized IPv4-compatible IPv6 loopback is rejected', !isSafePublicHttpUrl('http://[0:0:0:0:0:0:7f00:1]/'));
+  check('IPv4-compatible IPv6 private is rejected', !isSafePublicHttpUrl('http://[::10.0.0.1]/'));
+  check('unspecified IPv6 address is rejected', !isSafePublicHttpUrl('http://[::]/'));
+  const filteredP = parsePending([
+    '## Pending',
+    '- [ ] http://[::127.0.0.1]/admin | Bad | Role',
+    '- [ ] https://example.com/safe | Good | Role',
+  ].join('\n'));
+  check('IPv4-compatible IPv6 loopback is filtered from pending', filteredP.length === 1 && filteredP[0].url === 'https://example.com/safe');
   const filtered = parsePending([
     '## Pending',
     '- [ ] http://127.0.0.1/admin | Bad | Role',
