@@ -71,16 +71,30 @@ function parseIpv4Hostname(host) {
   return nums;
 }
 
+function ipv4FromLow32(high, lowBits) {
+  if (high > 0xffff || lowBits > 0xffff) return null;
+  return [(high >>> 8) & 255, high & 255, (lowBits >>> 8) & 255, lowBits & 255];
+}
+
 function parseIpv4MappedIpv6(host) {
   const normalized = String(host || '').toLowerCase();
   const dotted = normalized.match(/^(?:0:0:0:0:0:ffff:|::ffff:)(\d{1,3}(?:\.\d{1,3}){3})$/);
   if (dotted) return parseIpv4Hostname(dotted[1]);
   const hex = normalized.match(/^(?:0:0:0:0:0:ffff:|::ffff:)([0-9a-f]{1,4}):([0-9a-f]{1,4})$/);
   if (!hex) return null;
-  const high = Number.parseInt(hex[1], 16);
-  const low = Number.parseInt(hex[2], 16);
-  if (high > 0xffff || low > 0xffff) return null;
-  return [(high >>> 8) & 255, high & 255, (low >>> 8) & 255, low & 255];
+  return ipv4FromLow32(Number.parseInt(hex[1], 16), Number.parseInt(hex[2], 16));
+}
+
+// IPv4-compatible IPv6 (::a.b.c.d or ::h1:h2), where the low 32 bits encode an
+// IPv4 address. Rejects loopback/private destinations that new URL() normalizes
+// into this form (e.g. http://[::127.0.0.1]/ -> [::7f00:1] -> 127.0.0.1).
+function parseIpv4CompatibleIpv6(host) {
+  const bounded = String(host || '').toLowerCase();
+  const dotted = bounded.match(/^::(\d{1,3}(?:\.\d{1,3}){3})$/);
+  if (dotted) return parseIpv4Hostname(dotted[1]);
+  const hex = bounded.match(/^::([0-9a-f]{1,4}):([0-9a-f]{1,4})$/);
+  if (!hex) return null;
+  return ipv4FromLow32(Number.parseInt(hex[1], 16), Number.parseInt(hex[2], 16));
 }
 
 function isPrivateIpv4(parts) {
@@ -101,6 +115,7 @@ function isPrivateIpv4(parts) {
 function isPrivateOrInternalHostname(hostname) {
   const host = String(hostname || '').toLowerCase().replace(/^\[|\]$/g, '');
   if (!host) return true;
+  if (host === ':' || host === '::') return true;
   if (host === 'localhost' || host.endsWith('.localhost')) return true;
   if (!host.includes('.') && isIP(host) === 0) return true;
   if (/\.(?:local|internal|lan|home|test|invalid)$/i.test(host)) return true;
@@ -114,6 +129,9 @@ function isPrivateOrInternalHostname(hostname) {
 
   const mappedIpv4 = parseIpv4MappedIpv6(host);
   if (mappedIpv4) return isPrivateIpv4(mappedIpv4);
+
+  const compatIpv4 = parseIpv4CompatibleIpv6(host);
+  if (compatIpv4) return isPrivateIpv4(compatIpv4);
 
   const firstHextet = host.split(':')[0];
   if (/^f[cd][0-9a-f]{0,2}$/i.test(firstHextet)) return true;
