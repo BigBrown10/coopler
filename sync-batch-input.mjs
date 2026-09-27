@@ -116,6 +116,8 @@ function isPrivateOrInternalHostname(hostname) {
   const host = String(hostname || '').toLowerCase().replace(/^\[|\]$/g, '');
   if (!host) return true;
   if (host === ':' || host === '::') return true;
+  // Reject the unspecified IPv6 address (::), including hex form.
+  if (host === '::' || host === '0:0:0:0:0:0:0:0') return true;
   if (host === 'localhost' || host.endsWith('.localhost')) return true;
   if (!host.includes('.') && isIP(host) === 0) return true;
   if (/\.(?:local|internal|lan|home|test|invalid)$/i.test(host)) return true;
@@ -280,7 +282,13 @@ if (isMainModule(import.meta.url)) {
 
   function argValue(flag) {
     const i = process.argv.indexOf(flag);
-    return i >= 0 && i + 1 < process.argv.length ? process.argv[i + 1] : null;
+    if (i < 0) return null;
+    const value = process.argv[i + 1];
+    if (value === undefined || value === '' || value.startsWith('--')) {
+      console.error(`Missing value for ${flag}`);
+      process.exit(1);
+    }
+    return value;
   }
 
   function resolveInsideRepo(inputPath, fallbackPath, flag) {
