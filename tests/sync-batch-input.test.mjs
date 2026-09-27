@@ -9,6 +9,8 @@
 import { pass, fail, ROOT } from './helpers.mjs';
 import { join } from 'path';
 import { pathToFileURL } from 'url';
+import { execSync } from 'child_process';
+import { mkdtempSync, rmdirSync, existsSync, writeFileSync } from 'fs';
 
 console.log('\nsync-batch-input — pipeline "Pending" -> batch-input.tsv');
 
@@ -138,6 +140,71 @@ try {
   ], new Set(), 3);
   check('embedded tabs/newlines are sanitized before TSV row construction', unsafeFieldRows[0].row === '3\thttps://fields.example/1\tpipeline\tline1 line2 line3');
   check('sanitized batch rows remain four columns', unsafeFieldRows[0].row.split('\t').length === 4);
+
+  // ── SSRF: bracketed unspecified IPv6 address ──
+  check('bracketed unspecified IPv6 ([::]) is rejected', !isSafePublicHttpUrl('http://[::]/'));
+  check('bracketed unspecified IPv6 with port is rejected', !isSafePublicHttpUrl('http://[::]:8080/'));
+  check('bracketed IPv4-compatible IPv6 loopback is rejected', !isSafePublicHttpUrl('http://[::127.0.0.1]/'));
+  check('bracketed IPv4-compatible IPv6 private is rejected', !isSafePublicHttpUrl('http://[::10.0.0.1]/'));
+
+  // ── argValue() CLI validation ──
+  function runCli(args) {
+    try {
+      execSync(`node "${join(ROOT, 'sync-batch-input.mjs')}" ${args}`, {
+        cwd: ROOT,
+        encoding: 'utf-8',
+        timeout: 15000,
+        stdio: 'pipe',
+      });
+      return { exitCode: 0 };
+    } catch (e) {
+      return { exitCode: e.status ?? 1, stderr: (e.stderr || '').toString() };
+    }
+  }
+  check('--input without value exits with error', runCli('--input').exitCode !== 0);
+  check('--pipeline without value exits with error', runCli('--pipeline').exitCode !== 0);
+  check('--state without value exits with error', runCli('--state').exitCode !== 0);
+  check('--input followed by another flag exits with error', runCli('--input --dry-run').exitCode !== 0);
+  check('--pipeline followed by another flag exits with error', runCli('--pipeline --dry-run').exitCode !== 0);
+  check('--state followed by another flag exits with error', runCli('--state --state').exitCode !== 0);
+
+  // ── mkdirSync before writeFileSync ──
+  const TMP = mkdtempSync(join(ROOT, '.tmp-test-'));
+  const tmpPipeline = join(TMP, 'pipeline.md');
+  const tmpInput = join(TMP, 'newsub', 'batch-input.tsv');
+  const tmpState = join(TMP, 'batch-state.tsv');
+  writeFileSync(tmpPipeline, '## Pending\n- [ ] https://example.com/job-1\n', 'utf-8');
+  writeFileSync(tmpState, 'id\turl\tstatus\tstarted_at\tcompleted_at\treport_num\tscore\terror\tretries\n', 'utf-8');
+  try {
+    const batchDir = join(TMP, 'newsub');
+    const result = runCli(`--pipeline "${tmpPipeline}" --input "${tmpInput}" --state "${tmpState}" --dry-run`);
+    check('CLI does not crash when batch directory is missing (mkdirSync)', result.exitCode === 0);
+    check('dry-run does not create missing batch directory', !existsSync(batchDir));
+  } finally {
+    try { rmdirSync(TMP, { recursive: true }); } catch {}
+  }
+
+  // ── planBatchRows deduplication within single iteration ──
+  const sameUrlPending = [
+    { url: 'https://dupe-in-batch.example/a', company: 'A', notes: '' },
+    { url: 'https://dupe-in-batch.example/a', company: 'B', notes: 'note: second' },
+    { url: 'https://dupe-in-batch.example/b', company: 'C', notes: '' },
+    { url: 'https://dupe-in-batch.example/a', company: 'D', notes: '' },
+  ];
+  const dedupedRows = planBatchRows(sameUrlPending, new Set(), 20);
+  check('same URL in three pending entries yields one row', dedupedRows.length === 2);
+  check('first occurrence of duplicated URL is kept', dedupedRows.some((r) => r.url === 'https://dupe-in-batch.example/a' && r.notes === ''));
+  check('second unique URL is included', dedupedRows.some((r) => r.url === 'https://dupe-in-batch.example/b'));
+  check('duplicated rows have sequential ids', dedupedRows[0].id === 20 && dedupedRows[1].id === 21);
+
+  // ── TSV cell returns empty for undefined/null input ──
+  // tsvCell is not exported; test indirectly via planBatchRows and parsePending
+  const nullNotesRows = planBatchRows([
+    { url: 'https://nullnotes.example/1', company: '', notes: null },
+    { url: 'https://nullnotes.example/2', company: '', notes: undefined },
+  ], new Set(), 30);
+  check('null notes become empty in TSV', nullNotesRows[0].row === '30\thttps://nullnotes.example/1\tpipeline\t');
+  check('undefined notes become empty in TSV', nullNotesRows[1].row === '31\thttps://nullnotes.example/2\tpipeline\t');
 } catch (err) {
   fail(`sync-batch-input test suite threw: ${err?.message ?? err}`);
 }

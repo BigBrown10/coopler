@@ -34,14 +34,19 @@ import { getCareerOpsRoot } from './path-resolver.mjs';
 
 const CAREER_OPS = getCareerOpsRoot();
 
+/** Batch source label written into the source column. */
 export const SOURCE = 'pipeline';
 
-// Same localized header spellings reconcile-pipeline.mjs recognises.
+/** Localized section-header regex matching "Pending" in EN/ES/DE/FR. */
 export const PENDING_RE = /^##\s+(Pendientes|Pending|Offen|En attente)\s*$/i;
 const SECTION_RE = /^##\s+/;
 const PENDING_ITEM_RE = /^- \[ \]\s+/;
 
-// Extract URL from a pipeline row body (first positional cell before " |").
+/**
+ * Extract URL from a pipeline row body (first positional cell before " |").
+ * @param {string} body - Raw pipeline row body after stripping the checkbox prefix.
+ * @returns {string}
+ */
 export function lineUrl(body) {
   const i = body.indexOf(' |');
   return (i >= 0 ? body.slice(0, i) : body).trim();
@@ -141,6 +146,12 @@ function isPrivateOrInternalHostname(hostname) {
   return Number.isFinite(first) && first >= 0xfe80 && first <= 0xfebf;
 }
 
+/**
+ * Validate a URL is a publicly-reachable HTTP(S) destination.
+ * Rejects loopback, link-local, multicast, private, and internal hostnames.
+ * @param {string} raw - Raw URL string to validate.
+ * @returns {boolean}
+ */
 export function isSafePublicHttpUrl(raw) {
   let url;
   try {
@@ -153,7 +164,11 @@ export function isSafePublicHttpUrl(raw) {
   return !isPrivateOrInternalHostname(url.hostname);
 }
 
-// Extract labeled segments from a pipeline row body ("| label: value").
+/**
+ * Extract labeled segments from a pipeline row body ("| label: value").
+ * @param {string} body - Raw pipeline row body.
+ * @returns {{note?: string, trust?: string, rank?: string, posted?: string}}
+ */
 export function extractLabels(body) {
   const labels = {};
   const labelRe = /\|\s*(posted|trust|note|rank):\s*([^|]+)/g;
@@ -164,13 +179,21 @@ export function extractLabels(body) {
   return labels;
 }
 
-// Extract the company (positional 2nd cell) from a pipeline row body.
+/**
+ * Extract the company name (positional 2nd cell) from a pipeline row body.
+ * @param {string} body - Raw pipeline row body.
+ * @returns {string}
+ */
 export function lineCompany(body) {
   const parts = body.split('|').map((s) => s.trim());
   return parts.length > 1 ? parts[1] || '' : '';
 }
 
-// Build the batch `notes` field from labeled segments.
+/**
+ * Build the batch `notes` field from labeled segments.
+ * @param {{note?: string, trust?: string, rank?: string, posted?: string}} labels - Label dictionary from extractLabels.
+ * @returns {string}
+ */
 export function buildNotes(labels) {
   return Object.entries(labels).map(([k, v]) => `${k}: ${v}`).join(' | ');
 }
