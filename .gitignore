@@ -1,0 +1,14 @@
+node_modules/
+profiles/
+evidence/
+.env
+*.log
+.DS_Store
+
+# Personal / PII — never commit these
+cv.md
+cv.pdf
+whois.md
+config/profile.yml
+config/*.local.yml
+.venv-pdf/

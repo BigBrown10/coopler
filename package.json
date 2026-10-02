@@ -1,0 +1,32 @@
+{
+  "name": "autoapply",
+  "version": "0.1.0",
+  "description": "Standalone, agentic job-application autofill tool. Fills ATS forms (Greenhouse first), drafts grounded answers, shows a final-review gate, and submits only on explicit human approval.",
+  "type": "module",
+  "private": true,
+  "engines": {
+    "node": ">=20"
+  },
+  "bin": {
+    "autoapply": "./src/cli.js"
+  },
+  "scripts": {
+    "apply": "node src/cli.js apply",
+    "test": "node --test tests/*.test.mjs",
+    "lint": "node scripts/lint.mjs"
+  },
+  "dependencies": {
+    "imapflow": "^2.0.8",
+    "js-yaml": "^4.1.0",
+    "mailparser": "^3.9.28",
+    "playwright": "^1.47.0"
+  },
+  "keywords": [
+    "job-apply",
+    "ats",
+    "greenhouse",
+    "playwright",
+    "agent"
+  ],
+  "license": "MIT"
+}

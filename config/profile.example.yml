@@ -1,0 +1,51 @@
+# Your identity and career background. Used (a) for deterministic field matching
+# on ATS forms and (b) as grounding for the LLM answer draft.
+# Rules enforced by the tool:
+#   - Every draft answer must be grounded in this file or cv.md. Never invented.
+#   - legal / visa / work-authorization / salary / demographic fields are NEVER
+#     auto-filled. They are surfaced at the review gate for you to fill yourself.
+
+identity:
+  first_name: Eli
+  last_name: Doe
+  email: eli.doe@example.com
+  phone: "+1 555 010 1133"
+  location: "San Francisco, CA, USA"
+  linkedin: "https://www.linkedin.com/in/elidoe"
+  github: "https://github.com/elidoe"
+  website: "https://elidoe.dev"
+  portfolio: "https://elidoe.dev"
+
+education:
+  - school: "University of Example"
+    degree: "BSc"
+    field: "Computer Science"
+    start: "2014"
+    end: "2018"
+
+experience:
+  - company: "Acme Corp"
+    title: "Senior Software Engineer"
+    start: "2022-01"
+    end: "present"
+    bullets:
+      - "Led a 6-person delivery team shipping a fraud-detection platform to 4M users"
+      - "Cut p95 latency 38% by replacing a polling sync path with event streaming"
+  - company: "Widgets Inc"
+    title: "Software Engineer"
+    start: "2018-06"
+    end: "2021-12"
+    bullets:
+      - "Built and operated the checkout API handling 12k req/s at peak"
+      - "Introduced contract tests, dropping integration-flake count by 60%"
+
+skills:
+  - languages: ["TypeScript", "Python", "Go"]
+  - platforms: ["AWS", "Kubernetes", "PostgreSQL", "Kafka"]
+
+preferences:
+  # Which guard fields you may want to handle yourself at review (optional).
+  # Default: all guard fields are never auto-filled.
+  guardian_fields: []
+  # A short "how they want answers phrased" note (optional).
+  tone_notes: "Direct, evidence-first, quantify impact whenever possible."

@@ -1,0 +1,43 @@
+# Questions this tool refuses to guess — answered once, reused everywhere.
+#
+# A posting asks things no profile can answer honestly: legal declarations,
+# consent to arbitration, essay questions. The mapper leaves those blank on
+# purpose rather than inventing them. Anything you write here is treated as
+# YOUR answer, and it still appears at the review gate before anything is sent.
+#
+# Run `node src/cli.js questions <apply-url>` to list the outstanding questions
+# for any posting; it prints a block you can paste straight in here.
+#
+# Matching is forgiving about wording: case, "?", "*", "(Required)" and
+# "(Yes/No)" are ignored, so "Legal name?" matches "legal name". Word order is
+# not ignored, so "prefer not to say" and "say nothing" stay distinct.
+answers:
+  # Identity, not a declaration.
+  "legal name": "Osamudiamen Edogun"
+
+  # Consent / legal — you confirmed each of these explicitly.
+  "applicant arbitration agreement acknowledgement": "I acknowledge that I have read the foregoing applicant arbitration agreement"
+  "i confirm i have read the above": "I confirm I have read the above."
+  "legal agreements": "Yes"
+
+  # Profile facts you confirmed.
+  "age": "21-29"
+  # Veteran self-ID: you said you are not a protected veteran.
+  "veteran status": "I am not a protected veteran"
+  "what is your salary expectation": "competitive — check industry rate before answering"
+  "please give your monthly salary expectations": "competitive — check industry rate before answering"
+  "do you have experience working at a startup or fast paced": "Yes"
+  "english level": "Proficient — native speaker"
+  "please indicate your english level": "c2 - proficient/native"
+  "language proficiency": "c2 - proficient/native"
+  "did someone recommend you to apply": "No"
+  "share one concrete example of improving a recruitment process based on data": "check profile"
+  "how many years of experience do you have in recruitment or talent": "check profile"
+  "have you built or significantly rebuilt an hr function": "check profile"
+
+  # Video link is an optional CV supplement on some boards; leave it blank.
+  "video link url": ""
+
+  # Education / student status — boards ask whether you're currently in school.
+  "are you currently studying": "No"
+  "currently studying": "No"
