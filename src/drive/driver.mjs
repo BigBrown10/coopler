@@ -18,26 +18,31 @@ export class AtsDriver {
     const launched = await chromium.launchPersistentContext(profileDir, {
       channel: channel || 'chrome',
       headless,
+      args: headless ? ['--disable-blink-features=AutomationControlled'] : [],
       viewport: { width: 1280, height: 900 },
-      // Mask headless detection by removing the HeadlessChrome UA token.
       userAgent: headless
         ? 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
         : undefined,
+    });
+    // Hide automation markers once, on the context, so every page gets them.
+    await launched.addInitScript(() => {
+      Object.defineProperty(navigator, 'webdriver', { get: () => false });
+      Object.defineProperty(navigator, 'plugins', { get: () => ({
+        length: 3,
+        0: { name: 'Chrome PDF Plugin' },
+        1: { name: 'Chrome PDF Viewer' },
+        2: { name: 'Native Client' },
+        item: () => null,
+        namedItem: () => null,
+        refresh: () => {},
+      })});
+      Object.defineProperty(navigator, 'languages', { get: () => ['en-US', 'en'] });
     });
     const page = launched.pages()[0] || (await launched.newPage());
     return new AtsDriver({ page, browser: launched });
   }
 
   async goto(url) {
-    // Hide automation markers before navigating so reCAPTCHA sees a normal
-    // browser. Runs on every navigation automatically.
-    await this.page.context().addInitScript(() => {
-      Object.defineProperty(navigator, 'webdriver', { get: () => false });
-      // Chrome headless reports no plugins; give it a plausible set.
-      Object.defineProperty(navigator, 'plugins', { get: () => {
-        return { length: 3, 0: { name: 'Chrome PDF Plugin' }, 1: { name: 'Chrome PDF Viewer' }, 2: { name: 'Native Client' }, item: () => null, namedItem: () => null, refresh: () => {} };
-      }});
-    });
     const resp = await this.page.goto(url, { waitUntil: 'domcontentloaded', timeout: 45000 });
     await this.page.waitForLoadState('load', { timeout: 20000 }).catch(() => {});
     // Ensure JS widgets (react-select etc.) are hydrated before we interact.
@@ -697,6 +702,50 @@ async renderPdf(html, outputPath) {
     return outputPath;
   }
 
+  /**
+   * Generate a clean ATS-friendly CV PDF from the structured profile data.
+   * No LLM — just renders experience/education/skills into a professional
+   * HTML template. Playwright renders it as a proper PDF that Lever/Ashby
+   * parsers can actually read (unlike the ReportLab cv.pdf which produces
+   * "Couldn't auto-read resume" on Lever).
+   */
+  async buildCvPdf(profile, outputPath) {
+    const esc = (s) => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    const fmtDate = (d) => {
+      if (!d || d === 'present') return 'Present';
+      const [y, m] = String(d).split('-');
+      const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+      return m ? `${months[Number(m)-1]} ${y}` : y;
+    };
+    const exp = (profile.experience || []).map((r) => {
+      const bullets = (r.bullets || []).map((b) => `<li>${esc(b)}</li>`).join('');
+      return `<div class="role">${esc(r.company || '')} — ${esc(r.title || '')}</div><div class="date">${fmtDate(r.start)} — ${fmtDate(r.end || 'present')}</div><ul>${bullets}</ul>`;
+    }).join('');
+    const edu = (profile.education || []).map((e) => {
+      return `<div class="role">${esc(e.school || '')} — ${esc(e.degree || '')}${e.field ? ', ' + esc(e.field) : ''}</div><div class="date">${fmtDate(e.start)} — ${fmtDate(e.end || '')}</div>`;
+    }).join('');
+    const allSkills = [...new Set((profile.skills || []).flatMap((cat) => Object.values(cat)).flat().filter(Boolean))].join(', ');
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8">
+<style>
+  body { font-family: Helvetica, Arial, sans-serif; font-size: 10pt; margin: 36px 48px; line-height: 1.45; color: #111; }
+  h1 { font-size: 17pt; color: #1a3a5c; margin-bottom: 2px; }
+  .contact { font-size: 8pt; color: #555; margin-bottom: 14px; }
+  h2 { font-size: 11pt; color: #1a3a5c; border-bottom: 1px solid #1a3a5c; padding-bottom: 3px; margin-top: 16px; }
+  .role { font-weight: bold; margin-top: 6px; }
+  .date { font-style: italic; color: #666; font-size: 9pt; margin-bottom: 2px; }
+  ul { margin: 2px 0 4px 0; padding-left: 18px; }
+  li { margin-bottom: 1px; }
+  .skills { margin: 4px 0; font-size: 9pt; }
+</style></head><body>
+<h1>${esc(profile.identity?.first_name || '')} ${esc(profile.identity?.last_name || '')}</h1>
+<div class="contact">Technical AI Product Manager | ${esc(profile.identity?.location || '')} | ${esc(profile.identity?.phone || '')} | ${esc(profile.identity?.email || '')} | ${esc(profile.identity?.linkedin || '')}</div>
+<h2>Experience</h2>${exp}
+<h2>Education</h2>${edu}
+<h2>Skills</h2><div class="skills">${esc(allSkills)}</div>
+</body></html>`;
+    return this.renderPdf(html, outputPath);
+  }
+
   async captchaDetection() {
     const { classifyCaptchaFromUrls } = await import('../captcha/classifier.mjs');
     const urls = await this.page.evaluate(() => {
@@ -955,7 +1004,13 @@ async renderPdf(html, outputPath) {
       }
       document.querySelectorAll('.field-error, .error, [class*="error"], [aria-invalid="true"]').forEach((e) => {
         const t = (e.textContent || '').trim();
-        if (t && t.length < 120 && /required|enter your|please|invalid|must/i.test(t)) msgs.push(t);
+        // Lever shows "File exceeds the maximum upload size of 100MB" even
+        // when the resume was parsed successfully (200 + resumeStorageId).
+        // This is a frontend display bug — the file IS uploaded, and the
+        // form CAN be submitted. Only count real validation errors.
+        if (t && t.length < 120 && /required|enter your|please|invalid|must/i.test(t)) {
+          if (!/file exceeds|100MB/i.test(t)) msgs.push(t);
+        }
       });
       const body = document.body.innerText || '';
       // Only a genuine emailed-code challenge counts. "captcha" is deliberately
@@ -967,7 +1022,7 @@ async renderPdf(html, outputPath) {
       // wording, or a dedicated confirmation URL. "Success!" covers boards
       // that return to the same page with a success banner (Lever).
       const success = /thank(s| you)|we('ve| have) (got|received) your application|application (has been|was) (submitted|received)|we('ll| will) be in touch|submitted successfully|success!|your application (was|has been) sent|application received|application successful|thanks for applying/i.test(body)
-      || /\/(confirmation|thank_you|thanks|complete|applied|submitted)\b/i.test(location.href)
+      || /\/(confirmation|thank_you|thanks|complete|applied|submitted|success|c\/new)\b/i.test(location.href)
       || location.href !== (new URL(document.querySelector('form')?.action || location.href, location.href)).href;
       // Diagnostics: without these, "clicked but unconfirmed" is undebuggable.
       const stillOnForm = !!document.querySelector('input[type=file]');

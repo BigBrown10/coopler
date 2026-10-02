@@ -38,6 +38,9 @@ answers:
   # Video link is an optional CV supplement on some boards; leave it blank.
   "video link url": ""
 
-  # Education / student status — boards ask whether you're currently in school.
+  # Education / student status
   "are you currently studying": "No"
   "currently studying": "No"
+
+  # Sales experience — not a primary skill, but boards ask.
+  "how many years saas sales experience do you have": "0"

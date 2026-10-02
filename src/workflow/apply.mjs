@@ -304,13 +304,22 @@ function planStage(deps) {
     const boardSalaries = extractSalaryMentions(jdText);
     if (boardSalaries.length) log?.info('plan.salary_mentions', { boardSalaries });
 
-    // CV: the static cv.pdf in the project root is the canonical resume. Career-ops'
-    // pdf mode generates tailored CVs independently; autoapply just attaches whatever
-    // is here. The old LLM-tailoring path (tailorResume → renderPdf) was producing
-    // PDFs that Lever's upload pipeline rejected as "100MB" despite being 84KB.
-    // The bug is in the rendering step, not the content — so the static CV sidesteps
-    // it entirely.
-    const tailoredResumePath = resumePath;
+    // Build a clean, ATS-friendly CV PDF from the profile. No LLM — just
+    // structured data rendered through Playwright. This produces a browser-grade
+    // PDF that Lever/Ashby parsers can read, unlike the ReportLab cv.pdf.
+    let tailoredResumePath = resumePath;
+    try {
+      if (!cfg.dryRun && !cfg.questionsOnly) {
+        const outDir = join(PROJECT_ROOT, 'evidence', new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19));
+        ensureDir(outDir);
+        const pdf = join(outDir, 'cv.pdf');
+        await ctx.driver.buildCvPdf(ctx.profile, pdf);
+        tailoredResumePath = pdf;
+        log?.info('cv.built', { path: pdf });
+      }
+    } catch (e) {
+      log?.warn('cv.build_failed', { error: e?.message || String(e) });
+    }
     return { answers: all, tailoredResumePath, boardSalaries };
   };
 }
