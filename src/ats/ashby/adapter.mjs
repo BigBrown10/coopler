@@ -56,5 +56,6 @@ export const ashbyAdapter = makeGenericAdapter({
   capabilities: Object.freeze({
     botCheck: 'recaptcha',
     botCheckBlocksSubmit: true,
+    botCheckEnterprise: true,
   }),
 });

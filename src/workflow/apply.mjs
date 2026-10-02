@@ -696,8 +696,11 @@ function submitStage({ cfg, log }) {
       const available = order.filter((n) => keys[n]).map((n) => ({ name: n, apiKey: keys[n] }));
       if (caps.botCheck === 'recaptcha' && available.length > 0) {
         try {
-          const { sitekey, enterprise } = await ctx.driver.getRecaptchaInfo();
+          const { sitekey, enterprise: domEnterprise } = await ctx.driver.getRecaptchaInfo();
           if (!sitekey) throw new Error('no reCAPTCHA sitekey found on the form');
+          // Some boards (OpenAI Ashby) use Enterprise reCAPTCHA even when the
+          // DOM doesn't advertise it. The adapter capability overrides detection.
+          const enterprise = domEnterprise || Boolean(caps.botCheckEnterprise);
           const { token, provider } = await solveRecaptchaWithFallback({
             providers: available,
             sitekey,
