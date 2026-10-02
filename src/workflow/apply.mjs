@@ -438,13 +438,10 @@ async function reasonAboutRequired(required, profile, chatCompletion, cfg, log) 
   try {
     const res = await chatFn(prompt);
     const raw = (res?.choices?.[0]?.message?.content || res?.content || res?.text || '');
-    // Groq/openrouter responses can wrap JSON in markdown or return raw text.
-    const text = raw.replace(/```json\s*|```\s*/g, '').trim();
-    // Find the first JSON array in the response — more robust than parsing
-    // the whole response.
-    const arrMatch = text.match(/\[\s*\{[\s\S]*\}\s*\]/);
-    const arr = arrMatch ? JSON.parse(arrMatch[0]) : (() => { try { return JSON.parse(text); } catch { return null; } })();
-    const items = Array.isArray(arr) ? arr : (arr?.answers || arr?.fields || []);
+    // Use the same robust parser the rest of the codebase trusts.
+    const { parseJsonLoose } = await import('../llm/provider.mjs');
+    const parsed = parseJsonLoose(raw, { kind: 'array', what: 'required-field reasoning' });
+    const arr = Array.isArray(parsed) ? parsed : (parsed?.answers || parsed?.fields || []);
     const solved = [];
     for (const item of arr) {
       const key = (item.key || item.label || '').toLowerCase().replace(/\s+/g, '_');
