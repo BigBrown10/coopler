@@ -98,6 +98,27 @@ const METRIC_NOUNS = [
   'graduates', 'alumni', 'teachers', 'instructors', 'educators', 'faculty',
   'schools', 'districts', 'campuses', 'classrooms', 'programs', 'programmes',
   'workshops', 'assessments', 'exams',
+  // Core count nouns for the space-delimited market languages the project
+  // ships modes for (de, fr). German nouns are inflected around the case its
+  // job search prose actually wears — "3 Standorte" (any case plural) whose
+  // dative becomes "3 Standorten" — so each declension a CV realistically
+  // writes is listed explicitly: to a trailing-\b alternation those are
+  // different words. Every noun folds to its English canonical in
+  // NOUN_SYNONYMS, so a German CV is compared against an English source ("20
+  // Mitarbeiter" vs source "20 staff" both normalize to "20 staff") rather
+  // than only when both sides share a language (#5125). French keeps the
+  // accents its own spelling uses — "employés", "étudiants". This widens the
+  // lexicon, not the coverage detector: a document mixing listed and unlisted
+  // nouns still under-reports exactly as documented in diagnoseCoverage().
+  'mitarbeiter', 'mitarbeiterinnen',
+  'teammitglieder', 'kunden', 'benutzer', 'leute', 'leuten', 'personen',
+  'ingenieure', 'ingenieur', 'bewerbungen', 'bewerber', 'kandidaten',
+  'studenten', 'schüler', 'azubis', 'schulen',
+  'projekte', 'projekten', 'standorte', 'standorten', 'standort',
+  'niederlassungen', 'büros', 'bürogebäude',
+  'collaborateurs', 'employés', 'utilisateurs', 'candidats', 'stagiaires',
+  'étudiants', 'écoles', 'entreprises', 'projets', 'bureaux', 'membres',
+  'personnes',
 ];
 // How many words may sit between a number and the noun it counts. The same
 // regex parses the generated CV and the sources, so the window is symmetric by
@@ -162,6 +183,46 @@ const NOUN_SYNONYMS = new Map([
   // restating a source's "20 staff" is a paraphrase, not a fabrication.
   ['personnel', 'staff'],
   ['labs', 'laboratories'],
+  // The de/fr count nouns above fold to their English canonicals, so the gate
+  // compares a non-English CV against an English source (and against a source
+  // written in its own language) through the SAME normalized claim — a
+  // paraphrase across the language boundary, not a fabrication (#5125).
+  ['mitarbeiter', 'staff'],
+  ['mitarbeiterinnen', 'staff'],
+  ['teammitglieder', 'staff'],
+  ['membres', 'staff'],
+  ['kunden', 'customers'],
+  ['benutzer', 'users'],
+  ['utilisateurs', 'users'],
+  ['leute', 'people'],
+  ['leuten', 'people'],
+  ['personen', 'people'],
+  ['personnes', 'people'],
+  ['ingenieure', 'engineers'],
+  ['ingenieur', 'engineers'],
+  ['bewerbungen', 'applications'],
+  ['bewerber', 'candidates'],
+  ['candidats', 'candidates'],
+  ['studenten', 'students'],
+  ['schüler', 'students'],
+  ['étudiants', 'students'],
+  ['azubis', 'trainees'],
+  ['stagiaires', 'trainees'],
+  ['schulen', 'schools'],
+  ['écoles', 'schools'],
+  ['projekte', 'projects'],
+  ['projekten', 'projects'],
+  ['projets', 'projects'],
+  ['standorte', 'sites'],
+  ['standorten', 'sites'],
+  ['standort', 'sites'],
+  ['niederlassungen', 'sites'],
+  ['büros', 'facilities'],
+  ['bürogebäude', 'facilities'],
+  ['bureaux', 'facilities'],
+  ['entreprises', 'companies'],
+  ['employés', 'employees'],
+  ['collaborateurs', 'staff'],
 ]);
 const SIMPLE_CLAIM_PATTERNS = [
   /\b\d+(?:\.\d+)?\s?%/g,
@@ -836,9 +897,16 @@ function countShapedSpans(text) {
  *
  * TWO KNOWN BLIND SPOTS, stated rather than implied:
  *
- *   - Coincidental coverage. French "3 sites" matches the English noun, so one
- *     recognised count silences the warning for a French CV whose other counts
- *     are invisible.
+ *   - Partial lexicon. METRIC_NOUNS now carries the core count nouns of the
+ *     space-delimited market languages this project ships modes for (de, fr),
+ *     folded to their English canonicals (#5125) — so "3 Standorten" and
+ *     "45 collaborateurs" are checked rather than silently skipped. But the
+ *     list is not exhaustive: one recognized count STILL silences the warning
+ *     for the nouns neither language has contributed ("45 Berater beside 10
+ *     Schulen" is still under-reported), which the deliberate conservatism
+ *     above accepts; the fix direction is listed in the METRIC_NOUNS comment.
+ *     The pinned test in tests/fact-gate-language-coverage.test.mjs asserts
+ *     this so a future widening is deliberate.
  *   - CJK. This detector needs whitespace: it locates a count by a digit run
  *     that is not preceded by a letter and is followed by one. Japanese and
  *     Chinese put digits flush against the surrounding text ("3拠点で45名"),
