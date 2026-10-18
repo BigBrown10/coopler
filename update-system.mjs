@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+#!/usr/bin/env nod\n  'sync-batch-input.mjs',e
 
 /**
  * update-system.mjs — Safe auto-updater for career-ops
