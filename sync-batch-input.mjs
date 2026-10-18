@@ -328,8 +328,8 @@ if (isMainModule(import.meta.url)) {
     ? join(CAREER_OPS, 'data/pipeline.md')
     : join(CAREER_OPS, 'pipeline.md');
   const PIPELINE_FILE = resolveInsideRepo(argValue('--pipeline'), defaultPipeline, '--pipeline');
-  const INPUT_FILE = resolveInsideRepo(argValue('--input'), join(CAREER_OPS, 'batch/batch-input.tsv'), '--input');
-  const STATE_FILE = resolveInsideRepo(argValue('--state'), join(CAREER_OPS, 'batch/batch-state.tsv'), '--state');
+  const INPUT_FILE = resolveInsideRepo(argValue('--input'), join(join(dirname(fileURLToPath(import.meta.url)), 'batch'), 'batch-input.tsv'), '--input');
+  const STATE_FILE = resolveInsideRepo(argValue('--state'), join(join(dirname(fileURLToPath(import.meta.url)), 'batch'), 'batch-state.tsv'), '--state');
 
   if (!existsSync(PIPELINE_FILE)) {
     console.log('No pipeline.md found — nothing to sync.');

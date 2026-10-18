@@ -1,4 +1,4 @@
-#!/usr/bin/env nod\n  'sync-batch-input.mjs',e
+#!/usr/bin/env node
 
 /**
  * update-system.mjs — Safe auto-updater for career-ops
@@ -349,12 +349,12 @@ const SYSTEM_PATHS = [
   'merge-tracker.mjs',
   'persist-evaluation-report.mjs',
   'url-key.mjs',
-  'sync-pdf-flags.mjs',
   'tracker-links.mjs',
   'tracker.mjs',
   'find.mjs',
   'verify-pipeline.mjs',
   'discard-analytics.mjs',
+  'sync-batch-input.mjs',
   'reconcile-pipeline.mjs',
   'dedup-tracker.mjs',
   'add-entry.mjs',
