@@ -349,6 +349,7 @@ const SYSTEM_PATHS = [
   'merge-tracker.mjs',
   'persist-evaluation-report.mjs',
   'url-key.mjs',
+  'sync-pdf-flags.mjs',
   'tracker-links.mjs',
   'tracker.mjs',
   'find.mjs',

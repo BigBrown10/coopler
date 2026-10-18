@@ -148,13 +148,14 @@ try {
   check('bracketed IPv4-compatible IPv6 private is rejected', !isSafePublicHttpUrl('http://[::10.0.0.1]/'));
 
   // ── argValue() CLI validation ──
-  function runCli(args) {
+  function runCli(args, extraEnv = {}) {
     try {
       execSync(`node "${join(ROOT, 'sync-batch-input.mjs')}" ${args}`, {
         cwd: ROOT,
         encoding: 'utf-8',
         timeout: 15000,
         stdio: 'pipe',
+        env: { ...process.env, ...extraEnv },
       });
       return { exitCode: 0 };
     } catch (e) {
@@ -186,6 +187,27 @@ try {
     check('dry-run does not create missing batch directory', !existsSync(batchDir));
   } finally {
     rmSync(TMP, { recursive: true, force: true });
+  }
+
+  // ── defaults resolve beside the script, even under an external data root ──
+  // When CAREER_OPS_ROOT points outside the checkout, --input and --state
+  // fall back to CHECKOUT_ROOT (the script's own directory), so the synced
+  // batch files stay where batch-runner.sh reads them.  --pipeline still
+  // resolves against CAREER_OPS, which is what scan.mjs writes to.
+  const extDataRootTmp = realpathSync(mkdtempSync(join(SANDBOX_DATA_ROOT, 'ext-data-root-')));
+  try {
+    const extPipeline = join(extDataRootTmp, 'pipeline.md');
+    writeFileSync(extPipeline, '## Pending\n- [ ] https://ext.example/job-1\n', 'utf-8');
+    const extResult = runCli(
+      `--pipeline "${extPipeline}" --dry-run`,
+      { CAREER_OPS_ROOT: extDataRootTmp },
+    );
+    check(
+      'defaults resolve beside the script under an external data root',
+      extResult.exitCode === 0,
+    );
+  } finally {
+    rmSync(extDataRootTmp, { recursive: true, force: true });
   }
 
   // ── planBatchRows deduplication within single iteration ──

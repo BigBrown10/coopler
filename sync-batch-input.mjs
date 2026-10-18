@@ -28,11 +28,13 @@
 
 import { readFileSync, writeFileSync, existsSync, appendFileSync, mkdirSync } from 'fs';
 import { join, dirname, resolve, relative, isAbsolute } from 'path';
+import { fileURLToPath } from 'url';
 import { isIP } from 'net';
 import { isMainModule } from './lib/is-main-module.mjs';
 import { getCareerOpsRoot } from './path-resolver.mjs';
 
 const CAREER_OPS = getCareerOpsRoot();
+const CHECKOUT_ROOT = dirname(fileURLToPath(import.meta.url));
 
 /** Batch source label written into the source column. */
 export const SOURCE = 'pipeline';
@@ -314,9 +316,9 @@ if (isMainModule(import.meta.url)) {
     return value;
   }
 
-  function resolveInsideRepo(inputPath, fallbackPath, flag) {
+  function resolveInsideRepo(inputPath, fallbackPath, flag, root = CAREER_OPS) {
     const abs = resolve(inputPath || fallbackPath);
-    const rel = relative(CAREER_OPS, abs);
+    const rel = relative(root, abs);
     if (rel.startsWith('..') || isAbsolute(rel)) {
       console.error(`Invalid ${flag}: path must stay inside the career-ops root (${abs})`);
       process.exit(1);
@@ -328,8 +330,8 @@ if (isMainModule(import.meta.url)) {
     ? join(CAREER_OPS, 'data/pipeline.md')
     : join(CAREER_OPS, 'pipeline.md');
   const PIPELINE_FILE = resolveInsideRepo(argValue('--pipeline'), defaultPipeline, '--pipeline');
-  const INPUT_FILE = resolveInsideRepo(argValue('--input'), join(join(dirname(fileURLToPath(import.meta.url)), 'batch'), 'batch-input.tsv'), '--input');
-  const STATE_FILE = resolveInsideRepo(argValue('--state'), join(join(dirname(fileURLToPath(import.meta.url)), 'batch'), 'batch-state.tsv'), '--state');
+  const INPUT_FILE = resolveInsideRepo(argValue('--input'), join(CHECKOUT_ROOT, 'batch', 'batch-input.tsv'), '--input', CHECKOUT_ROOT);
+  const STATE_FILE = resolveInsideRepo(argValue('--state'), join(CHECKOUT_ROOT, 'batch', 'batch-state.tsv'), '--state', CHECKOUT_ROOT);
 
   if (!existsSync(PIPELINE_FILE)) {
     console.log('No pipeline.md found — nothing to sync.');
