@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-
+\n  'modes/notify.md',
 /**
  * update-system.mjs — Safe auto-updater for career-ops
  *
@@ -367,7 +367,7 @@ const SYSTEM_PATHS = [
   'set-status.mjs',
   'mark-pdf-ready.mjs',
   'normalize-statuses.mjs',
-  'fix-report-links.mjs',
+\n  'notify-telegram.mjs',  'fix-report-links.mjs',
   'cv-sync-check.mjs',
   'i18n-drift.mjs',
   'verify-cv-facts.mjs',
