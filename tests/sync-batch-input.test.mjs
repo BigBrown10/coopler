@@ -6,11 +6,11 @@
 //
 // Imported directly (like rank-pipeline.test.mjs) so the pure functions are
 // exercised without spawning the CLI.
-import { pass, fail, ROOT } from './helpers.mjs';
+import { pass, fail, ROOT, SANDBOX_DATA_ROOT } from './helpers.mjs';
 import { join } from 'path';
 import { pathToFileURL } from 'url';
 import { execSync } from 'child_process';
-import { mkdtempSync, rmdirSync, existsSync, writeFileSync } from 'fs';
+import { mkdtempSync, rmSync, realpathSync, existsSync, writeFileSync } from 'fs';
 
 console.log('\nsync-batch-input — pipeline "Pending" -> batch-input.tsv');
 
@@ -169,7 +169,11 @@ try {
   check('--state followed by another flag exits with error', runCli('--state --state').exitCode !== 0);
 
   // ── mkdirSync before writeFileSync ──
-  const TMP = mkdtempSync(join(ROOT, '.tmp-test-'));
+  // The fixture lives inside the sandbox data root, not beside the checkout:
+  // helpers pin CAREER_OPS_ROOT to SANDBOX_DATA_ROOT, and the CLI refuses
+  // paths outside its data root (resolveInsideRepo). Also keeps the
+  // repository root walk (scratch-dirs.test.mjs check 13) clean.
+  const TMP = realpathSync(mkdtempSync(join(SANDBOX_DATA_ROOT, 'sync-batch-input-')));
   const tmpPipeline = join(TMP, 'pipeline.md');
   const tmpInput = join(TMP, 'newsub', 'batch-input.tsv');
   const tmpState = join(TMP, 'batch-state.tsv');
@@ -181,7 +185,7 @@ try {
     check('CLI does not crash when batch directory is missing (mkdirSync)', result.exitCode === 0);
     check('dry-run does not create missing batch directory', !existsSync(batchDir));
   } finally {
-    try { rmdirSync(TMP, { recursive: true }); } catch {}
+    rmSync(TMP, { recursive: true, force: true });
   }
 
   // ── planBatchRows deduplication within single iteration ──
