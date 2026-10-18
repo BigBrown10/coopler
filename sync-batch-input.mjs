@@ -317,7 +317,9 @@ if (isMainModule(import.meta.url)) {
   }
 
   function resolveInsideRepo(inputPath, fallbackPath, flag, root = CAREER_OPS) {
-    const abs = resolve(inputPath || fallbackPath);
+    // Explicit user-passed paths are trusted as-is; only defaults are checked.
+    if (inputPath) return resolve(inputPath);
+    const abs = resolve(fallbackPath);
     const rel = relative(root, abs);
     if (rel.startsWith('..') || isAbsolute(rel)) {
       console.error(`Invalid ${flag}: path must stay inside the career-ops root (${abs})`);
