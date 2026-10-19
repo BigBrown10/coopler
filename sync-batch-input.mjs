@@ -222,8 +222,9 @@ export function parsePending(text) {
   for (let i = pendStart + 1; i < pendEnd; i++) {
     if (!PENDING_ITEM_RE.test(lines[i])) continue;
     const body = lines[i].replace(PENDING_ITEM_RE, '');
-    const url = lineUrl(body);
-    if (!isSafePublicHttpUrl(url)) continue;
+    const raw = lineUrl(body);
+    if (!isSafePublicHttpUrl(raw)) continue;
+    const url = new URL(raw).href;
     out.push({ url, company: lineCompany(body), notes: buildNotes(extractLabels(body)) });
   }
   return out;
@@ -375,7 +376,10 @@ if (isMainModule(import.meta.url)) {
   }
 
   if (DRY_RUN) {
-    console.log('(dry-run — no changes written)');
+    // Print where a real run would write. The defaults depend on which root
+    // the install resolved (data root vs checkout), and that difference is the
+    // one a dry run cannot otherwise show: it exits before touching either file.
+    console.log(`(dry-run — no changes written; would append to ${relative(process.cwd(), INPUT_FILE) || INPUT_FILE})`);
     process.exit(0);
   }
 
@@ -386,6 +390,6 @@ if (isMainModule(import.meta.url)) {
 
   appendFileSync(INPUT_FILE, newRows.map((e) => e.row).join('\n') + '\n');
 
-  console.log(`✅ ${newRows.length} entries appended to batch/batch-input.tsv`);
-  console.log('   Run `npm run batch` to evaluate them.');
+  console.log(`✅ ${newRows.length} entries appended to ${relative(process.cwd(), INPUT_FILE) || INPUT_FILE}`);
+  console.log('   Run `./batch/batch-runner.sh` to evaluate them.');
 }

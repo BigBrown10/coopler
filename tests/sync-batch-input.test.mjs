@@ -7,7 +7,7 @@
 // Imported directly (like rank-pipeline.test.mjs) so the pure functions are
 // exercised without spawning the CLI.
 import { pass, fail, ROOT, SANDBOX_DATA_ROOT } from './helpers.mjs';
-import { join } from 'path';
+import { join, sep } from 'path';
 import { pathToFileURL } from 'url';
 import { execSync } from 'child_process';
 import { mkdtempSync, rmSync, realpathSync, existsSync, writeFileSync } from 'fs';
@@ -150,24 +150,24 @@ try {
   // ── argValue() CLI validation ──
   function runCli(args, extraEnv = {}) {
     try {
-      execSync(`node "${join(ROOT, 'sync-batch-input.mjs')}" ${args}`, {
+      const stdout = execSync(`node "${join(ROOT, 'sync-batch-input.mjs')}" ${args}`, {
         cwd: ROOT,
         encoding: 'utf-8',
         timeout: 15000,
         stdio: 'pipe',
         env: { ...process.env, ...extraEnv },
       });
-      return { exitCode: 0 };
+      return { exitCode: 0, stdout };
     } catch (e) {
-      return { exitCode: e.status ?? 1, stderr: (e.stderr || '').toString() };
+      return { exitCode: e.status ?? 1, stderr: (e.stderr || '').toString(), stdout: (e.stdout || '').toString() };
     }
   }
-  check('--input without value exits with error', runCli('--input').exitCode !== 0);
-  check('--pipeline without value exits with error', runCli('--pipeline').exitCode !== 0);
-  check('--state without value exits with error', runCli('--state').exitCode !== 0);
+  check('--input without value exits with error', runCli('--input --dry-run').exitCode !== 0);
+  check('--pipeline without value exits with error', runCli('--pipeline --dry-run').exitCode !== 0);
+  check('--state without value exits with error', runCli('--state --dry-run').exitCode !== 0);
   check('--input followed by another flag exits with error', runCli('--input --dry-run').exitCode !== 0);
   check('--pipeline followed by another flag exits with error', runCli('--pipeline --dry-run').exitCode !== 0);
-  check('--state followed by another flag exits with error', runCli('--state --state').exitCode !== 0);
+  check('--state followed by another flag exits with error', runCli('--state --state --dry-run').exitCode !== 0);
 
   // ── mkdirSync before writeFileSync ──
   // The fixture lives inside the sandbox data root, not beside the checkout:
@@ -198,13 +198,21 @@ try {
   try {
     const extPipeline = join(extDataRootTmp, 'pipeline.md');
     writeFileSync(extPipeline, '## Pending\n- [ ] https://ext.example/job-1\n', 'utf-8');
+    // Dry-run prints where a real run WOULD write; that must land in batch/
+    // beside the script (the checkout), not under the external data root.
+    // Before the CHECKOUT_ROOT fix this test passed vacuously: the CLI exited
+    // 0 while planning to write batch-input.tsv under the data root, which
+    // batch-runner.sh never reads.
+    const batchDirMarker = `batch${sep}batch-input.tsv`;
     const extResult = runCli(
       `--pipeline "${extPipeline}" --dry-run`,
       { CAREER_OPS_ROOT: extDataRootTmp },
     );
     check(
       'defaults resolve beside the script under an external data root',
-      extResult.exitCode === 0,
+      extResult.exitCode === 0
+        && extResult.stdout.includes(batchDirMarker)
+        && !extResult.stdout.includes(extDataRootTmp.split(/[\\/]/).pop()),
     );
   } finally {
     rmSync(extDataRootTmp, { recursive: true, force: true });
