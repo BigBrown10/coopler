@@ -383,9 +383,12 @@ Guardar la evaluación completa en `reports/{###}-{company-slug}-{YYYY-MM-DD}.md
 **Via:** {agencia/firma de reclutamiento, o — para candidaturas directas}
 **Archetype:** {detectado}
 **Score:** {X/5}
+**Decisión:** {Presentarse | Valorar | Investigar primero | Descartar}
 **Legitimacy:** {High Confidence | Proceed with Caution | Suspicious}
 **Work Auth:** {✅ Sponsors | ➖ Not needed | ⚠️ Unstated | ⛔ No sponsorship}
 **PDF:** {ruta o pendiente}
+
+{la frase de `## Veredicto (lead)`, copiada tal cual}
 
 ---
 

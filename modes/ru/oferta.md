@@ -702,9 +702,12 @@ Importance измеряет, насколько требование весом�
 **Via:** {агентство или рекрутинговая фирма, либо — для прямых откликов}
 **Archetype:** {определённый}
 **Score:** {X/5}
+**Решение:** {Откликнуться | Рассмотреть | Сначала изучить | Пропустить}
 **Legitimacy:** {High Confidence | Proceed with Caution | Suspicious}
 **Work Auth:** {✅ Sponsors | ➖ Not needed | ⚠️ Unstated | ⛔ No sponsorship}
 **PDF:** {путь или «ожидается»}
+
+{предложение из `## Вердикт (lead)`, дословно}
 
 ---
 

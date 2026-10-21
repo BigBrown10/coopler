@@ -37,6 +37,7 @@ Process multiple job offers in parallel via headless workers. Each worker runs t
 | `--start-from N` | `0` | Skip offers with ID below N |
 | `--limit N` | `0` | Max number of offers to process in this run (0 = no limit) |
 | `--max-retries N` | `2` | Max retry attempts per offer before giving up |
+| `--worker-timeout N` | `1800` | Stop a worker that runs longer than N seconds and mark the offer failed (0 = no limit) |
 | `--rate-limit-sleep N` | `300` | Maximum adaptive retry delay in seconds (0–2147483647); use `0` to pause the batch immediately |
 
 ### Adaptive rate-limit retries (Claude only)
@@ -81,6 +82,7 @@ batch/
 1. **batch-runner.sh** reads `batch-input.tsv` and `batch-state.tsv` to determine which offers need processing.
 2. For each pending offer, it assigns a report number and launches a headless worker with `batch-prompt.md` as the system prompt. Placeholders like `{{URL}}`, `{{REPORT_NUM}}` resolve to stable labels (e.g. `<URL from the job message>`), not the concrete value, so the resolved system prompt is byte-identical across offers and prompt caching can reuse it. The actual URL, JD file, report number, date and batch ID are passed separately in the per-job message the worker also receives.
 3. Each worker evaluates the offer, writes a report to `reports/`, generates a PDF to `output/`, and writes a tracker TSV to `tracker-additions/`.
+   A worker whose posting breaks one of your hard rules (a dealbreaker or `compensation.minimum`, stated in the JD) stops before evaluating. It writes only a SKIP tracker row that quotes the rule and the JD line. The runner records it as `skipped`, merges the row, moves the posting out of the pipeline inbox, and lists it under "Dealbreaker skips" in the batch summary. To evaluate one anyway, run it in a session and say "evaluate anyway".
 4. After all workers finish, batch-runner calls `merge-tracker.mjs` to merge TSVs into `data/applications.md`, `reconcile-pipeline.mjs` to move processed offers out of the `data/pipeline.md` inbox, and `verify-pipeline.mjs` to check integrity.
 
 ## Tracker Merge

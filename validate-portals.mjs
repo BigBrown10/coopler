@@ -14,7 +14,7 @@ import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSy
 import { join, dirname, resolve } from 'path';
 import { tmpdir } from 'os';
 import { fileURLToPath, pathToFileURL } from 'url';
-import * as yaml from 'js-yaml';
+import { loadYaml } from './lib/yaml-document.mjs';
 import { flagValue, hasFlag, validateFlags } from './lib/cli-flags.mjs';
 import { getCareerOpsRoot } from './path-resolver.mjs';
 import { barePrefixDomainKeywords } from './title-keywords.mjs';
@@ -338,6 +338,9 @@ export async function validatePortalsConfig(config, { providerIds = new Set() } 
       if (config.location_filter.strict !== undefined && typeof config.location_filter.strict !== 'boolean') {
         add(errors, 'location_filter.strict', 'must be a boolean when set');
       }
+      if (config.location_filter.remote_title_fallback !== undefined && typeof config.location_filter.remote_title_fallback !== 'boolean') {
+        add(errors, 'location_filter.remote_title_fallback', 'must be a boolean when set');
+      }
     }
   }
 
@@ -502,7 +505,7 @@ async function validateFile(filePath) {
     throw new Error(`file not found: ${filePath}`);
   }
   const providerIds = await loadProviderIds();
-  const parsed = yaml.load(readFileSync(filePath, 'utf-8'));
+  const parsed = loadYaml(readFileSync(filePath, 'utf-8'));
   return validatePortalsConfig(parsed, { providerIds });
 }
 

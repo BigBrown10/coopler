@@ -5,7 +5,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { describeSpawn } from './helpers/describe-spawn.mjs';
+import { describeSpawn, exitedNonZero } from './helpers/describe-spawn.mjs';
 
 const SCRIPT = fileURLToPath(new URL('../migrate-scan-runs.mjs', import.meta.url));
 const OLD_RUNS = 'timestamp\tstatus\tcompanies\tboards\tfound\tfiltered_title\tfiltered_tier\tfiltered_location\tfiltered_salary\tfiltered_content\tfiltered_cooldown\tdupes\tnew_added\terrors\n' +
@@ -64,7 +64,7 @@ test('an empty --file value is rejected before --apply can use the default file'
   for (const args of [['--file=', '--apply'], ['--file', '', '--apply'], ['--file', '   ', '--apply']]) {
     const { root, file } = fixture(t);
     const result = run(root, args);
-    assert.notEqual(result.status, 0, `accepted ${JSON.stringify(args)}`);
+    assert.ok(exitedNonZero(result), describeSpawn(result, `accepted ${JSON.stringify(args)}`));
     assert.match(result.stderr, /--file.*requires.*value/i);
     assert.equal(readFileSync(file, 'utf8'), OLD_RUNS);
     assert.equal(existsSync(`${file}.bak`), false);
@@ -80,7 +80,7 @@ test('unknown flags and missing --file values fail before reading or writing his
     ['--file', '--help'],
   ]) {
     const result = run(root, args);
-    assert.notEqual(result.status, 0, `accepted ${JSON.stringify(args)}`);
+    assert.ok(exitedNonZero(result), describeSpawn(result, `accepted ${JSON.stringify(args)}`));
     assert.match(result.stderr, /unrecognized flag|--file requires (?:a value|a path argument)/i);
     assert.equal(readFileSync(file, 'utf8'), OLD_RUNS);
     assert.equal(existsSync(`${file}.bak`), false);

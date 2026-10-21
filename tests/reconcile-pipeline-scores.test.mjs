@@ -113,7 +113,18 @@ test('an empty PDF field does not consume the next header', t => {
   assert.deepEqual(processedRow(f.pipeline), { score: '4.2/5', pdf: 'PDF ❌' });
 });
 
-for (const [pdf, expected] of [['Not generated', 'PDF ❌'], ['output/042-cv.pdf', 'PDF ✅']]) {
+for (const [pdf, expected] of [
+  ['Not generated', 'PDF ❌'],
+  ['output/042-cv.pdf', 'PDF ✅'],
+  ['no generado — ejecuta /career-ops pdf example para crearlo bajo demanda', 'PDF ❌'],
+  ['no se generó ningún archivo .pdf', 'PDF ❌'],
+  ['nicht erstellt — mit /career-ops pdf example bei Bedarf erzeugen', 'PDF ❌'],
+  ['não gerado — execute /career-ops pdf example para criar quando quiser', 'PDF ❌'],
+  ['未生成 — 运行 /career-ops pdf example 按需生成', 'PDF ❌'],
+  ['❌', 'PDF ❌'],
+  ['✅', 'PDF ✅'],
+  ['/home/candidate/career-ops/output/cv-candidate-042-example-2026-09-01.PDF', 'PDF ✅'],
+]) {
   test(`a skipped batch entry preserves PDF field: ${pdf}`, t => {
     const f = fixture(t, { report: `**Score:** 2.5/5\n**PDF:** ${pdf}`, stateStatus: 'skipped' });
     f.run();

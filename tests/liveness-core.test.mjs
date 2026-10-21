@@ -574,3 +574,149 @@ closureVerdict("You can't view this job because it's not available at this time.
 closureVerdict('Salary data is not available at this time. Apply now.', ['Apply now']).result === 'active'
   ? pass('an availability mention on a live posting stays active')
   : fail('the new pattern over-triggered on a live posting');
+
+console.log('\nliveness-core — CareerViet: Vietnamese Apply label, and the deadline that closes a posting (#4832)');
+
+// A CareerViet page as the browser reads it: the info block carries the
+// deadline, and the Apply button is there whether or not the posting is open.
+const careerviet = (deadline, applyControls = ['NỘP ĐƠN ỨNG TUYỂN'], finalUrl = 'https://careerviet.vn/vi/tim-viec-lam/brand-executive.35C50000.html') =>
+  classifyLiveness({
+    status: 200,
+    requestedUrl: 'https://careerviet.vn/vi/tim-viec-lam/brand-executive.35C50000.html',
+    finalUrl,
+    bodyText: `Brand Executive\nCông ty ABC\nCấp bậc\nNhân viên\nHết hạn nộp\n${deadline}\nPhúc lợi\nLaptop\n${'Mô tả công việc. '.repeat(30)}`,
+    applyControls,
+    now: new Date('2026-10-17T05:00:00Z'),
+  });
+
+careerviet('30/11/2026').result === 'active'
+  ? pass('open CareerViet posting with NỘP ĐƠN ỨNG TUYỂN -> active (was: uncertain/no_apply_control)')
+  : fail(`open CareerViet posting not active: ${JSON.stringify(careerviet('30/11/2026'))}`);
+
+{
+  const v = careerviet('29/09/2025');
+  v.result === 'expired' && v.code === 'deadline_passed'
+    ? pass('past deadline wins over the intact Apply button -> expired')
+    : fail(`past deadline not expired: ${JSON.stringify(v)}`);
+}
+
+careerviet('17/10/2026').result === 'active'
+  ? pass('the deadline day itself is still open')
+  : fail('the deadline day was read as closed');
+
+careerviet('16/10/2026').result === 'expired'
+  ? pass('the day after the deadline is closed')
+  : fail('the day after the deadline was read as open');
+
+// Vietnam is UTC+7: 18:00 UTC on 17/10 is already 18/10 there.
+classifyLiveness({
+  status: 200,
+  finalUrl: 'https://careerviet.vn/vi/tim-viec-lam/x.35C50000.html',
+  bodyText: `Hết hạn nộp 17/10/2026 ${'Mô tả công việc. '.repeat(30)}`,
+  applyControls: ['NỘP ĐƠN ỨNG TUYỂN'],
+  now: new Date('2026-10-17T18:00:00Z'),
+}).result === 'expired'
+  ? pass('the deadline is judged in Vietnam time (UTC+7)')
+  : fail('the deadline was judged in UTC');
+
+// Today's date must not depend on how a locale orders a formatted date: with
+// format() rendering MM/DD/YYYY, both sides of the deadline still read right.
+{
+  const format = Object.getOwnPropertyDescriptor(Intl.DateTimeFormat.prototype, 'format');
+  Object.defineProperty(Intl.DateTimeFormat.prototype, 'format', { configurable: true, get: () => () => '10/17/2026' });
+  let past, ahead;
+  try {
+    past = careerviet('16/10/2026').result;
+    ahead = careerviet('30/03/2027').result;
+  } finally {
+    Object.defineProperty(Intl.DateTimeFormat.prototype, 'format', format);
+  }
+  past === 'expired' && ahead === 'active'
+    ? pass('the deadline comparison does not depend on the locale date format')
+    : fail(`with an MM/DD/YYYY format: past=${past}, ahead=${ahead}`);
+}
+
+careerviet('31/02/2026').result === 'active'
+  ? pass('an impossible date is not read as a closure')
+  : fail('an impossible date closed the posting');
+
+// Only the first deadline counts: a related-jobs card must not close the posting.
+classifyLiveness({
+  status: 200,
+  finalUrl: 'https://careerviet.vn/vi/tim-viec-lam/x.35C89ABA.html',
+  bodyText: `Hết hạn nộp\n30/11/2026\n${'Mô tả công việc. '.repeat(30)}\nViệc làm tương tự\nHết hạn nộp 01/01/2024`,
+  applyControls: ['NỘP ĐƠN ỨNG TUYỂN'],
+  now: new Date('2026-10-17T05:00:00Z'),
+}).result === 'active'
+  ? pass('a later deadline in a related-jobs card does not close the posting')
+  : fail('a related-jobs deadline closed the posting');
+
+// A dead permalink that redirects to a listing page must not be closed by
+// another job's deadline on that page (review of #5367).
+{
+  const v = careerviet('29/09/2025', ['NỘP ĐƠN ỨNG TUYỂN'], 'https://careerviet.vn/vi/tim-viec-lam/ket-qua');
+  v.result === 'uncertain' && v.code === 'redirected_off_posting'
+    ? pass('redirect off the posting + past deadline -> uncertain, not expired')
+    : fail(`redirected listing read as ${JSON.stringify(v)}`);
+}
+
+// A missing CareerViet id lands on the all-jobs page, and 35C89ABA (the usual
+// id shape, with no five digits in a row) is not one the redirect guard
+// recognises. The page's cards print "Hạn nộp: dd-mm-yyyy", not the posting's
+// "Hết hạn nộp dd/mm/yyyy", and its "ỨNG TUYỂN NGAY" is not the posting's
+// button, so the page cannot close the posting or keep it alive, even with a
+// card dated in the past first (the real page had none on 2026-10-18).
+{
+  const v = classifyLiveness({
+    status: 200,
+    requestedUrl: 'https://careerviet.vn/vi/tim-viec-lam/brand-executive.35C89ABA.html',
+    finalUrl: 'https://careerviet.vn/viec-lam/tat-ca-viec-lam-vi.html',
+    bodyText: `Việc làm\nKế toán tổng hợp\nCạnh tranh Hà Nội Hạn nộp: 01-10-2025 Cập nhật: 18-10-2026\nNhân Viên Kinh Doanh B2B\nHạn nộp: 31-10-2026\n${'Mô tả công việc. '.repeat(30)}`,
+    applyControls: ['ỨNG TUYỂN NGAY', 'Lưu việc làm'],
+    now: new Date('2026-10-17T05:00:00Z'),
+  });
+  v.result === 'uncertain'
+    ? pass('the all-jobs page a missing CareerViet id lands on stays uncertain')
+    : fail(`the all-jobs landing page read as ${JSON.stringify(v)}`);
+}
+
+// Without a deadline the Apply label alone still reads active, and the label
+// is not a loose match: "đơn" prose elsewhere does not count.
+classifyLiveness({
+  status: 200,
+  finalUrl: 'https://careerviet.vn/vi/tim-viec-lam/x.35C89ABA.html',
+  bodyText: 'Mô tả công việc. '.repeat(30),
+  applyControls: ['Nộp đơn ứng tuyển'],
+}).result === 'active'
+  ? pass('the label reads as an Apply control in mixed case too')
+  : fail('mixed-case label not recognised');
+
+classifyLiveness({
+  status: 200,
+  finalUrl: 'https://careerviet.vn/vi/tim-viec-lam/x.35C89ABA.html',
+  bodyText: 'Mô tả công việc. '.repeat(30),
+  applyControls: ['Xem đơn hàng'],
+}).result === 'uncertain'
+  ? pass('an unrelated "đơn" control is not an Apply control')
+  : fail('an unrelated control read as Apply');
+
+// ── isUnreadableVerdict: "body could not be read" is not "closed" (#5408) ────
+import { isUnreadableVerdict } from '../liveness-core.mjs';
+
+const unreadableProbe = classifyLiveness({
+  status: 200,
+  finalUrl: 'https://careers.example.com/job/123',
+  bodyText: 'Home Careers Contact',
+  applyControls: [],
+});
+isUnreadableVerdict(unreadableProbe)
+  ? pass('a nav/footer-only page (insufficient_content) is an unreadable verdict')
+  : fail('a nav/footer-only page was not flagged unreadable');
+
+isUnreadableVerdict({ result: 'expired', code: 'hard_expired' }) === false
+  && isUnreadableVerdict({ result: 'active' }) === false
+  && isUnreadableVerdict({ result: 'uncertain', code: 'bot_challenge' }) === false
+  && isUnreadableVerdict(null) === false
+  && isUnreadableVerdict(undefined) === false
+  ? pass('closed, active, other uncertain and missing verdicts are not unreadable')
+  : fail('isUnreadableVerdict over-matched a non-insufficient_content verdict');

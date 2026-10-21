@@ -5994,7 +5994,6 @@ try {
   const nodeTrackerWriters = [
     ['dedup-tracker.mjs', 1],
     ['normalize-statuses.mjs', 1],
-    ['reply-watch.mjs', 1],
     ['tracker.mjs', 2],
   ];
   const unsafeWriters = nodeTrackerWriters.filter(([name, minTransactions]) => {
@@ -9765,6 +9764,7 @@ try {
       // ...and pipeline-lock.mjs runs the shared lock protocol from
       // lib/dir-lock.mjs (#5358), so the fixture carries that too.
       copyFileSync(join(ROOT, 'lib', 'dir-lock.mjs'), join(e2eTmp, 'lib', 'dir-lock.mjs'));
+      copyFileSync(join(ROOT, 'lib', 'yaml-document.mjs'), join(e2eTmp, 'lib', 'yaml-document.mjs'));
       // ...and followup-cadence now delegates flag validation to the shared
       // lib/cli-flags.mjs helper, so the fixture carries that too.
       copyFileSync(join(ROOT, 'lib', 'cli-flags.mjs'), join(e2eTmp, 'lib', 'cli-flags.mjs'));
@@ -9772,6 +9772,11 @@ try {
       // which is what lets the copy answer "am I main?" correctly from a
       // symlinked tmpdir in the first place.
       copyFileSync(join(ROOT, 'lib', 'is-main-module.mjs'), join(e2eTmp, 'lib', 'is-main-module.mjs'));
+      // ...and it reads the apply date from status-log.tsv with funnel-velocity.mjs's
+      // ledger parser, so the fixture carries that module and its imports too.
+      for (const rel of ['funnel-velocity.mjs', 'stats.mjs', 'funnel-stages.mjs', 'lib/scan-history-columns.mjs', 'lib/tsv-formula-escape.mjs']) {
+        copyFileSync(join(ROOT, rel), join(e2eTmp, rel));
+      }
       mkdirSync(join(e2eTmp, 'templates'), { recursive: true });
       copyFileSync(join(ROOT, 'templates', 'states.yml'), join(e2eTmp, 'templates', 'states.yml'));
       // The sandbox resolves js-yaml (and the rest of followup-cadence's

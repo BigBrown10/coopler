@@ -2,6 +2,7 @@
 import { spawn, spawnSync } from "node:child_process";
 import fs from "node:fs";
 import http from "node:http";
+import { createRequire } from "node:module";
 import net from "node:net";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -91,6 +92,15 @@ for (let i = 0; i < args.length; i++) {
     console.log("  --no-open       Do not open the browser automatically");
     process.exit(0);
   }
+}
+
+try {
+  createRequire(path.join(webDir, "package.json")).resolve("next/package.json");
+} catch (err) {
+  if (err.code !== "MODULE_NOT_FOUND") throw err;
+  console.error("\x1b[31mError:\x1b[0m Web UI dependencies are not installed (next was not found from web/).");
+  console.error("Install them once, then retry:  npm --prefix web ci\n");
+  process.exit(1);
 }
 
 // Print header banner
@@ -230,10 +240,10 @@ function cleanup() {
 
 process.on("SIGINT", cleanup);
 process.on("SIGTERM", cleanup);
-child.on("exit", (code) => {
+child.on("exit", (code, signal) => {
   polling = false;
   if (!opened && code !== 0) {
-    console.error(`\x1b[31mError:\x1b[0m Web server failed to start on port ${port}. Port may be occupied or build failed.`);
+    console.error(`\x1b[31mError:\x1b[0m Web server exited ${code === null ? `on ${signal}` : `with code ${code}`} before it was ready. The output above says why.`);
   }
   process.exit(code || 0);
 });

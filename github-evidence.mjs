@@ -48,8 +48,8 @@
 import { spawnSync } from 'child_process';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
 import { join, relative } from 'path';
-import * as yaml from 'js-yaml';
-import { getCareerOpsRoot } from './path-resolver.mjs';
+import { loadYaml } from './lib/yaml-document.mjs';
+import { getCareerOpsRoot, getProfilePath, hasProfileOverride } from './path-resolver.mjs';
 import { localToday } from './lib/local-today.mjs';
 import { isMainModule } from './lib/is-main-module.mjs';
 import { validateFlags } from './lib/cli-flags.mjs';
@@ -435,7 +435,7 @@ export function renderMarkdown(result) {
 
 function loadProfile(path) {
   if (!existsSync(path)) return null;
-  return yaml.load(readFileSync(path, 'utf8')) || {};
+  return loadYaml(readFileSync(path, 'utf8')) || {};
 }
 
 /**
@@ -445,7 +445,7 @@ function loadProfile(path) {
  */
 export function runCli({
   args = [], dataRoot = getCareerOpsRoot(), runGh = defaultGhRunner,
-  profilePath = process.env.CAREER_OPS_PROFILE || join(dataRoot, 'config', 'profile.yml'),
+  profilePath = hasProfileOverride() ? getProfilePath() : getProfilePath(dataRoot),
   today = localToday(), stdout = (s) => process.stdout.write(s), stderr = (s) => process.stderr.write(s),
 } = {}) {
   const asJson = args.includes('--json');

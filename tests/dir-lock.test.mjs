@@ -16,13 +16,16 @@
 //
 // Run: node --test tests/dir-lock.test.mjs
 
-import { test } from 'node:test';
+import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
-import fs, { mkdtempSync, mkdirSync, rmSync, existsSync, readFileSync } from 'node:fs';
+import fs, { mkdtempSync, mkdirSync, rmSync, existsSync, readFileSync, utimesSync } from 'node:fs';
+import { spawn, spawnSync } from 'node:child_process';
 import { syncBuiltinESMExports } from 'node:module';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { acquireDirLock, DirLockTimeoutError } from '../lib/dir-lock.mjs';
+import {
+  acquireDirLock, tryAcquireDirLockSync, lockRecoveryVerdict, releaseOrWarn, DirLockTimeoutError, RECOVER_LIVE, RECOVER_STALE,
+} from '../lib/dir-lock.mjs';
 import { acquirePortalHealthLock, LockTimeoutError as PortalLockTimeoutError } from '../portal-health-lock.mjs';
 import { acquirePipelineLock } from '../pipeline-lock.mjs';
 import { acquireTrackerLock } from '../tracker-utils.mjs';
@@ -57,11 +60,25 @@ function interceptOwnerWrite(lockDir, onOwnerWrite) {
 
 const errno = (code, path) => Object.assign(new Error(`${code}: injected, open '${path}'`), { code, path });
 
-// A live lock belonging to someone else: this process's pid, so it is never
-// judged stale, and a token no caller under test holds.
+// A live process that is not this one. A peer lock stamped with THIS process's
+// pid is no longer a live peer: with no handle of ours behind its token it goes
+// to the age rule (#5390), so it would pass only while young. Stamping another
+// live pid keeps these cases on the liveness branch they mean to exercise.
+let peerProcess;
+function livePeerPid() {
+  if (!peerProcess) {
+    peerProcess = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1 << 30)'], { stdio: 'ignore' });
+    peerProcess.unref();
+  }
+  return peerProcess.pid;
+}
+after(() => peerProcess?.kill());
+
+// A live lock belonging to someone else: another live process's pid, so it is
+// never judged stale, and a token no caller under test holds.
 function plantPeerLock(realWrite, lockDir, token = 'peer') {
   mkdirSync(lockDir);
-  realWrite(join(lockDir, 'owner.json'), JSON.stringify({ pid: process.pid, token, started_at: new Date().toISOString() }));
+  realWrite(join(lockDir, 'owner.json'), JSON.stringify({ pid: livePeerPid(), token, started_at: new Date().toISOString() }));
 }
 
 const ownerToken = (lockDir) => JSON.parse(readFileSync(join(lockDir, 'owner.json'), 'utf-8')).token;
@@ -185,7 +202,7 @@ test('a timeout without a caller factory names the lock and its holder', async (
   plantPeerLock(fs.writeFileSync, lockDir);
   let info;
   await assert.rejects(acquireDirLock(lockDir, { ...FAST, timeoutError: (i) => { info = i; return new Error('t'); } }));
-  assert.equal(info.owner.pid, process.pid);
+  assert.equal(info.owner.pid, livePeerPid());
   assert.equal(info.owner.alive, true);
   assert.match(info.diagnosis, /owner=/);
   await assert.rejects(acquireDirLock(lockDir, FAST), (err) => err instanceof DirLockTimeoutError
@@ -271,4 +288,115 @@ test('a directory replaced before our stamp write keeps its holder\'s stamp', as
   );
   assert.ok(fault.fired, 'the injected replacement was reached');
   assert.equal(ownerToken(lockDir), 'peer', "the new holder's stamp was not overwritten");
+});
+
+// The non-waiting entry point makes the same pass acquireDirLock does, so it is
+// not a weaker lock: a live holder answers null, and a crashed holder's lock is
+// reclaimed in line rather than reported busy for ever.
+test('tryAcquireDirLockSync answers busy for a live holder and reclaims a crashed one', (t) => {
+  const dir = scratch(t, 'dir-lock-sync-');
+  const lockDir = join(dir, 'x.lock');
+  plantPeerLock(fs.writeFileSync, lockDir);
+  assert.equal(tryAcquireDirLockSync(lockDir, { staleMs: 60_000 }), null);
+  assert.equal(ownerToken(lockDir), 'peer', 'a live holder keeps its lock');
+
+  rmSync(lockDir, { recursive: true, force: true });
+  mkdirSync(lockDir);
+  const exited = spawnSync(process.execPath, ['-e', '']);
+  fs.writeFileSync(join(lockDir, 'owner.json'), JSON.stringify({ pid: exited.pid, token: 'crashed', started_at: new Date().toISOString() }));
+  const lock = tryAcquireDirLockSync(lockDir, { staleMs: 60_000 });
+  assert.ok(lock, 'a crashed holder does not block a non-waiting caller');
+  assert.equal(lock.staleRecovered, true);
+  assert.equal(ownerToken(lockDir), lock.token);
+  lock.release();
+  assert.equal(existsSync(lockDir), false);
+});
+
+// A plain FILE at the lock path is never a live lock under this protocol; it is
+// a leftover from a caller that locked with an O_EXCL file at that name before
+// moving here (the web's chat store did). Reading owner.json through it fails
+// ENOTDIR, which used to read as "could not look" and pinned it LIVE for ever.
+// It is ownerless, so the age rule decides: respected while fresh, reclaimed
+// once old.
+test('a leftover lock file at the lock path is judged by age, not pinned live for ever', async (t) => {
+  const dir = scratch(t, 'dir-lock-file-');
+  const lockDir = join(dir, 'x.lock');
+  fs.writeFileSync(lockDir, '');
+  assert.equal(lockRecoveryVerdict(lockDir, 60_000), RECOVER_LIVE, 'a fresh file may be a save in flight');
+  assert.equal(tryAcquireDirLockSync(lockDir, { staleMs: 60_000 }), null);
+  const dayAgo = new Date(Date.now() - 86_400_000);
+  utimesSync(lockDir, dayAgo, dayAgo);
+  assert.equal(lockRecoveryVerdict(lockDir, 60_000), RECOVER_STALE);
+  const lock = await acquireDirLock(lockDir, FAST);
+  assert.equal(lock.staleRecovered, true);
+  assert.ok(fs.statSync(lockDir).isDirectory());
+  lock.release();
+  assert.equal(existsSync(lockDir), false);
+});
+
+// The non-waiting entry point shares the read-back rule, not just the pass: an
+// inconclusive read of its own stamp is re-read and then settled by identity,
+// never taken as lost (which would answer "busy" against its own lock and leave
+// it orphaned under this process's live pid).
+for (const [label, times] of [['for a moment', 2], ['for good', Infinity]]) {
+  test(`tryAcquireDirLockSync: a stamp unreadable ${label} is still ours`, (t) => {
+    const dir = scratch(t, 'dir-lock-sync-readback-');
+    const lockDir = join(dir, 'x.lock');
+    const reads = failOwnerReads(lockDir, times);
+    t.after(() => reads.restore());
+    const lock = tryAcquireDirLockSync(lockDir, { staleMs: 60_000 });
+    assert.ok(lock, 'acquired, not reported busy against its own lock');
+    assert.equal(lock.attempts, 1);
+    assert.ok(reads.failed >= 2, 'the read-back met the injected failures');
+    reads.restore();
+    assert.equal(ownerToken(lockDir), lock.token);
+    lock.release();
+    assert.equal(existsSync(lockDir), false);
+  });
+}
+
+// The same replacement, met by the non-waiting entry point: the exclusive stamp
+// write is in the pass both entry points share, so the sync caller must answer
+// "busy" against the new holder rather than stamp itself into that lock.
+test('tryAcquireDirLockSync: a directory replaced before our stamp write keeps its holder\'s stamp', (t) => {
+  const dir = scratch(t, 'dir-lock-sync-replaced-');
+  const lockDir = join(dir, 'x.lock');
+  const fault = interceptOwnerWrite(lockDir, (realWrite, path, data, options) => {
+    rmSync(lockDir, { recursive: true, force: true });
+    plantPeerLock(realWrite, lockDir); // the new holder has stamped already
+    return realWrite(path, data, options); // ...and only then does our write land
+  });
+  t.after(() => fault.restore());
+
+  assert.equal(tryAcquireDirLockSync(lockDir, { staleMs: 60_000 }), null, 'busy, not a second holder');
+  assert.ok(fault.fired, 'the injected replacement was reached');
+  assert.equal(ownerToken(lockDir), 'peer', "the new holder's stamp was not overwritten");
+});
+
+// releaseOrWarn abandons a handle whose release threw: nothing retries it. Its
+// token must stop counting as live, or the leftover lock, stamped with this
+// process's pid, stays LIVE until the process exits — the wedge activeTokens
+// exists to remove (#5390 review). release() itself keeps the token on a throw,
+// since a handle that is retried still holds the lock until then.
+test('a release releaseOrWarn gives up on does not pin the leftover lock live', (t) => {
+  const dir = scratch(t, 'dir-lock-abandoned-');
+  const lockDir = join(dir, 'x.lock');
+  const lock = tryAcquireDirLockSync(lockDir, {
+    staleMs: 1,
+    removeLock: () => { throw errno('EIO', lockDir); },
+  });
+  assert.ok(lock);
+  assert.throws(() => lock.release(), /EIO/, 'a non-contention removal failure throws');
+  const dayAgo = new Date(Date.now() - 86_400_000);
+  utimesSync(lockDir, dayAgo, dayAgo);
+  assert.equal(lockRecoveryVerdict(lockDir, 1), RECOVER_LIVE, 'still held: the handle may yet be retried');
+
+  const realError = console.error;
+  console.error = () => {};
+  try {
+    releaseOrWarn(lock);
+  } finally {
+    console.error = realError;
+  }
+  assert.equal(lockRecoveryVerdict(lockDir, 1), RECOVER_STALE, 'abandoned: the old leftover ages out');
 });

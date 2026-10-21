@@ -6,7 +6,13 @@ Career-ops includes a local-first web interface located in the `web/` directory.
 
 ## Getting Started
 
-To launch the local web server and open the browser dashboard:
+The web UI has its own dependencies. Install them once:
+
+```bash
+npm --prefix web ci
+```
+
+Then launch the local web server and open the browser dashboard:
 
 ```bash
 npm run ui

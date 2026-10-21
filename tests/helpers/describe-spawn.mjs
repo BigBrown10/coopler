@@ -54,3 +54,45 @@ export function describeSpawn(result, label = '') {
   parts.push(stream('stderr', result?.stderr));
   return parts.join('\n  ');
 }
+
+/**
+ * Did the child RUN and choose a non-zero exit?
+ *
+ * `assert.notEqual(result.status, 0)` is the usual way to say "this command
+ * must fail", and it passes for three different reasons:
+ *
+ *   the CLI rejected the input   status 1     <- the only one meant
+ *   the child was killed         status null  <- timeout, SIGTERM
+ *   the child never started      status null  <- ENOENT, EACCES
+ *
+ * `null !== 0`, so a command that was killed at its `timeout:` or could not be
+ * spawned at all satisfies the assertion. The test then reports success while
+ * proving nothing about the behaviour it names: a slow CI runner turns "the
+ * CLI refuses a malformed bound" green without the CLI ever having parsed the
+ * bound. That is strictly worse than the empty failure message describeSpawn
+ * was written for — a confusing red costs an afternoon, a false green hides a
+ * regression for as long as it survives.
+ *
+ * So the check is positive: no spawn error, no signal, and an integer status
+ * that is not 0. An exit code is a decision the program made; a kill is not.
+ *
+ * Platform limit: Windows has no POSIX signal delivery, so a child terminated
+ * by a signal reports a non-zero NATIVE status and no signal, and this cannot
+ * tell it apart from a chosen exit there. A `timeout:` kill is still caught on
+ * every platform, because spawnSync sets `error` to ETIMEDOUT — and that is
+ * the case these assertions were actually exposed to.
+ *
+ * Pair it with describeSpawn for the message, which then names which of the
+ * three happened:
+ *
+ *   assert.ok(exitedNonZero(r), describeSpawn(r, 'a malformed bound must fail'));
+ *
+ * @param {import('child_process').SpawnSyncReturns<string>} result
+ * @returns {boolean}
+ */
+export function exitedNonZero(result) {
+  if (!result) return false;
+  if (result.error) return false;   // never ran: ENOENT, EACCES, ETIMEDOUT
+  if (result.signal) return false;  // killed; it did not choose this
+  return Number.isInteger(result.status) && result.status !== 0;
+}

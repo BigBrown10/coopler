@@ -297,8 +297,11 @@ Full evaluation を `reports/{###}-{company-slug}-{YYYY-MM-DD}.md` に保存す�
 **URL:**
 **Archetype:** {detected}
 **Score:** {X/5}
+**決定:** {応募する | 検討する | 先に調べる | 見送る}
 **Legitimacy:** {High Confidence | Proceed with Caution | Suspicious}
 **PDF:** {path or pending}
+
+{`## 判定 (lead)` の一文をそのまま写す}
 
 ---
 

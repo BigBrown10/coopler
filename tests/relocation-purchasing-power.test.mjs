@@ -27,7 +27,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, rmSync, readFileSync } from 'nod
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { describeSpawn } from './helpers/describe-spawn.mjs';
+import { describeSpawn, exitedNonZero } from './helpers/describe-spawn.mjs';
 
 const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 const SCRIPT = join(ROOT, 'salary-gap.mjs');
@@ -148,7 +148,7 @@ test('ad hoc --relocation mode with no resolvable jurisdiction reports a reason,
 
 test('ad hoc --relocation mode requires --gross and --posting-location (usage error, not a silent default)', () => {
   const r = run(['--relocation', '--posting-location', 'Halifax, NS']);
-  assert.notEqual(r.status, 0, 'missing --gross must fail, not silently proceed');
+  assert.ok(exitedNonZero(r), describeSpawn(r, 'missing --gross must fail, not silently proceed'));
   assert.match(r.stderr, /Usage: node salary-gap\.mjs --relocation/);
 });
 
@@ -228,7 +228,7 @@ test('ad hoc --relocation mode: an unreadable --posting-location-file is a usage
     '--home-location', 'Midland, ON',
     '--currency', 'CAD',
   ]);
-  assert.notEqual(r.status, 0);
+  assert.ok(exitedNonZero(r), describeSpawn(r, 'expected a non-zero exit'));
   assert.match(r.stderr, /Could not read --posting-location-file/);
 });
 
@@ -248,7 +248,7 @@ test('ad hoc --relocation mode: a trailing --posting-location-file with no opera
     '--currency', 'CAD',
     '--posting-location-file',
   ]);
-  assert.notEqual(r.status, 0, 'a missing operand must not silently succeed');
+  assert.ok(exitedNonZero(r), describeSpawn(r, 'a missing operand must not silently succeed'));
   assert.match(r.stderr, /--posting-location-file requires a file path operand/);
   assert.doesNotMatch(r.stderr, /Could not read --posting-location-file/,
     'a missing operand is a distinct usage error, not a failed file read');
@@ -260,7 +260,7 @@ test('ad hoc --relocation mode: --posting-location-file followed by another flag
     '--posting-location-file', '--home-location', 'Midland, ON',
     '--currency', 'CAD',
   ]);
-  assert.notEqual(r.status, 0, 'an operand that looks like another flag must not be read as a path');
+  assert.ok(exitedNonZero(r), describeSpawn(r, 'an operand that looks like another flag must not be read as a path'));
   assert.match(r.stderr, /--posting-location-file requires a file path operand/);
   assert.doesNotMatch(r.stderr, /Could not read --posting-location-file '--home-location'/,
     'must reject before ever attempting to read "--home-location" as a file');
@@ -273,7 +273,7 @@ test('ad hoc --relocation mode: --posting-location-file= with an empty operand i
     '--home-location', 'Midland, ON',
     '--currency', 'CAD',
   ]);
-  assert.notEqual(r.status, 0);
+  assert.ok(exitedNonZero(r), describeSpawn(r, 'expected a non-zero exit'));
   assert.match(r.stderr, /--posting-location-file requires a file path operand/);
 });
 

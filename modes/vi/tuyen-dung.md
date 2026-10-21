@@ -679,9 +679,12 @@ Lưu bản đánh giá đầy đủ vào `reports/{###}-{company-slug}-{YYYY-MM-
        Not a target — closest default: {dòng từ bảng của _shared.md}
        Not a target — no close match -->
 **Score:** {X/5}
+**Quyết định:** {Nộp hồ sơ | Cân nhắc | Tìm hiểu trước | Bỏ qua}
 **Legitimacy:** {High Confidence | Proceed with Caution | Suspicious}
 **Work Auth:** {✅ Sponsors | ➖ Not needed | ⚠️ Unstated | ⛔ No sponsorship}
 **PDF:** {đường dẫn hoặc pending}
+
+{câu của `## Kết luận (lead)`, chép nguyên văn}
 
 ---
 
@@ -733,7 +736,7 @@ Lưu bản đánh giá đầy đủ vào `reports/{###}-{company-slug}-{YYYY-MM-
 (toàn văn tin tuyển dụng, dán nguyên văn — xem yêu cầu bên dưới)
 ```
 
-**Tiêu đề phần và nhãn header giữ nguyên tiếng Anh.** `## Machine Summary`, dấu `(lead)` và `## Risk Summary` (cả hai lần xuất hiện), các nhãn `**Date:**`, `**URL:**`, `**Archetype:**`, `**Score:**`, `**Legitimacy:**`, `**Work Auth:**`, `**PDF:**` và các tiêu đề `## A)`-`## H)` được script và giao diện web đọc theo tên; dịch chúng sẽ làm mất trường trong trình xem một cách âm thầm. Nội dung bên dưới tiêu đề viết bằng `{language.output}`.
+**Tiêu đề phần và nhãn header giữ nguyên tiếng Anh.** `## Machine Summary`, dấu `(lead)` và `## Risk Summary` (cả hai lần xuất hiện), các nhãn `**Date:**`, `**URL:**`, `**Archetype:**`, `**Score:**`, `**Legitimacy:**`, `**Work Auth:**`, `**PDF:**` và các tiêu đề `## A)`-`## H)` được script và giao diện web đọc theo tên; dịch chúng sẽ làm mất trường trong trình xem một cách âm thầm. Nhãn `**Quyết định:**` là ngoại lệ. Nội dung bên dưới tiêu đề viết bằng `{language.output}`.
 
 **Machine Summary (bắt buộc):** mọi báo cáo mang một YAML fence `## Machine Summary` ngay sau header -- cùng schema, tên field chính xác và quy tắc với khối "Machine Summary" trong `batch/batch-prompt.md` (không nhân đôi schema ở đây; file đó là nguồn sự thật). Nó gồm `advertised_comp`: con số lương của chính JD **nguyên văn** (ví dụ `"25-35 triệu"`), hoặc `null` khi JD không nêu -- không bao giờ ước lượng, không bao giờ thay bằng dữ liệu thị trường đã nghiên cứu. Key này gieo quan sát lương công bố mà `node salary-gap.mjs` đọc. Nó cũng gồm `risk_summary`: khối Risk Summary phản chiếu dạng map, và `requirement_importance`: bảng Block B phản chiếu từng dòng, mang tầng bằng chứng, mức quan trọng và match của mỗi dòng (`[]` khi JD không cho ra danh sách yêu cầu dùng được). Giới hạn `inferred` từ cổng Block B cũng áp dụng trong YAML -- `importance` không bao giờ là `critical` hoặc `high` khi `evidence: inferred`. Các key YAML và giá trị enum giữ nguyên tiếng Anh.
 

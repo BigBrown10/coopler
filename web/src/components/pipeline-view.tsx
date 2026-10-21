@@ -1,6 +1,6 @@
 "use client";
 
-import { startTransition, useCallback, useEffect, useMemo, useOptimistic, useRef, useState, useTransition } from "react";
+import { startTransition, useCallback, useDeferredValue, useEffect, useMemo, useOptimistic, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Search, ChevronsUpDown, X, Compass, ArrowRight, ExternalLink } from "lucide-react";
@@ -100,6 +100,12 @@ export function PipelineView({
     if (!isPending) setPendingTab(null);
   }, [isPending]);
 
+  // The table filters on a deferred copy of the search text. The input shows
+  // each keystroke at once; re-filtering and re-rendering every tracker row
+  // runs at low priority, and React drops a stale render when the next
+  // keystroke arrives, so typing no longer waits on the whole table.
+  const deferredQ = useDeferredValue(q);
+
   const filtered = useMemo(() => {
     if (tab === "INBOX") return [];
     let rows = visibleApplications;
@@ -110,8 +116,8 @@ export function PipelineView({
         return !Number.isNaN(n) && n >= minFilter;
       });
     }
-    if (q.trim()) {
-      const needle = q.toLowerCase();
+    if (deferredQ.trim()) {
+      const needle = deferredQ.toLowerCase();
       rows = rows.filter((r) => companySearchText(r).toLowerCase().includes(needle));
     }
     // scoreNum is the real score parser (it handles the tracker's "4.2/5"
@@ -122,7 +128,7 @@ export function PipelineView({
       scoreNum,
       (row) => companyPresentation(row).label,
     ) as Application[];
-  }, [visibleApplications, tab, q, sort, minFilter]);
+  }, [visibleApplications, tab, deferredQ, sort, minFilter]);
 
   const filteredKeys = filtered.map(applicationKey);
   const selectedRows = filtered.filter((r) => selected.has(applicationKey(r)));

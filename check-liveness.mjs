@@ -250,6 +250,9 @@ async function main() {
   // --throttle spaces repeat browser visits to the same host; the API rung is
   // cheap and not WAF-rate-limited, so it never waits.
   const spacer = createHostSpacer(throttleBaseMs);
+  // An Ashby board answers for every posting under its org: fetch each board
+  // once per run, not once per posting.
+  const boardCache = new Map();
 
   // Sequential — project rule: never Playwright in parallel
   for (let i = 0; i < urls.length; i++) {
@@ -257,7 +260,7 @@ async function main() {
     let result, reason, code;
 
     // Rung 1: zero-token ATS API check. A conclusive active/expired wins; otherwise fall through.
-    const api = await checkLivenessViaApi(url);
+    const api = await checkLivenessViaApi(url, { boardCache });
     if (api) {
       ({ result, reason, code } = api);
       viaApi++;

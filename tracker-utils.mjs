@@ -12,11 +12,11 @@ import { readFileSync, writeFileSync, renameSync, rmSync, statSync, lstatSync, e
 import { join, dirname, basename, resolve, relative, isAbsolute, sep } from 'path';
 import { createHash, randomUUID } from 'crypto';
 import { tmpdir } from 'os';
-import * as yaml from 'js-yaml';
+import { loadYaml } from './lib/yaml-document.mjs';
 // The lock protocol is lib/dir-lock.mjs, shared with every other core lock.
 // This module only picks the tracker's lock directory, timing and error.
 import { acquireDirLock } from './lib/dir-lock.mjs';
-import { normalizeTextKey } from './tracker-parse.mjs';
+import { normalizeTextKey, firstLinkTarget } from './tracker-parse.mjs';
 
 /**
  * Minimum age before directory age alone may condemn an ownerless lock or
@@ -74,9 +74,8 @@ export function rebuildRow(parts) {
  *   it resolves, or its targets could not be inspected conclusively.
  */
 export function findDeadReportLink(reportCell, trackerDir, dataRoot, options = {}) {
-  const match = String(reportCell ?? '').match(/\]\(([^)]+)\)/);
-  if (!match) return null;
-  const link = match[1];
+  const link = firstLinkTarget(reportCell);
+  if (link == null) return null;
   const inspect = options.stat ?? statSync;
   const errors = [];
   const trackerDirs = Array.isArray(trackerDir) ? trackerDir : [trackerDir];
@@ -545,7 +544,7 @@ export async function acquireTrackerLock(lockDir, options = {}) {
     removeLock: typeof options.removeLock === 'function' ? options.removeLock : undefined,
     onRecoverGuard: testWaitingMarker
       ? () => writeFileSync(testWaitingMarker, JSON.stringify({
-        pid: process.pid, lockDir, guardCreated: true,
+        pid: process.pid, ppid: process.ppid, lockDir, guardCreated: true,
       }), { flag: 'wx' })
       : undefined,
     // Tagged so callers can tell "lock is busy, retry later" apart from
@@ -763,7 +762,7 @@ export function appendLedgerRows(path, text) {
  * @returns {{id:string,label:string,aliases:string[],description:string,terminal:boolean}[]} Parsed state entries.
  */
 export function loadCanonicalStates(statesPath) {
-  const doc = yaml.load(readFileSync(statesPath, 'utf-8'));
+  const doc = loadYaml(readFileSync(statesPath, 'utf-8'));
   if (!doc || !Array.isArray(doc.states)) {
     throw new Error(`Malformed states file at ${statesPath}: expected a top-level "states" list`);
   }

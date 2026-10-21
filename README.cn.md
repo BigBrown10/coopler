@@ -24,7 +24,7 @@
   <a href="README.id.md">Bahasa Indonesia</a>
 </p>
 
-<p align="center"><a href="https://career-ops.org/zh/docs?utm_source=readme&utm_content=zh">完整中文文档：career-ops.org/zh/docs</a></p>
+<p align="center"><a href="https://career-ops.org/zh/docs?utm_source=readme&utm_content=zh">开源 AI 求职智能体 · 完整中文文档</a></p>
 
 <!-- The non-breaking spaces (&nbsp;) and word joiners (&#8288;) below decide where each line wraps on a phone. Keep them when editing. -->
 

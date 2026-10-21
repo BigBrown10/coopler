@@ -5,7 +5,7 @@ import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSy
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { describeSpawn } from './helpers/describe-spawn.mjs';
+import { describeSpawn, exitedNonZero } from './helpers/describe-spawn.mjs';
 
 const SCRIPT = fileURLToPath(new URL('../scripts/export-ats-text.mjs', import.meta.url));
 
@@ -78,7 +78,7 @@ test('unknown flags and missing values still fail without creating an export', (
     ['--help', '--profile'],
   ]) {
     const result = run(root, args);
-    assert.notEqual(result.status, 0, `accepted ${args.join(' ')}`);
+    assert.ok(exitedNonZero(result), describeSpawn(result, `accepted ${args.join(' ')}`));
     assert.equal(existsSync(output), false);
   }
 });

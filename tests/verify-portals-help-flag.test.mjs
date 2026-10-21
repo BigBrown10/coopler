@@ -37,7 +37,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
-import { describeSpawn } from './helpers/describe-spawn.mjs';
+import { describeSpawn, exitedNonZero } from './helpers/describe-spawn.mjs';
 
 const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 const NOTHING_TO_VERIFY = /nothing to verify/i;
@@ -89,7 +89,7 @@ test('-h prints usage and exits 0, without reaching the portals check', () => {
 
 test('an unrecognized flag errors and exits 1, without reaching the portals check', () => {
   const r = runVerify('--bogus-flag');
-  assert.notEqual(r.status, 0, `expected non-zero exit, got 0: ${r.all}`);
+  assert.ok(exitedNonZero(r), describeSpawn(r, `expected non-zero exit, got 0`));
   assert.match(r.stderr, /unrecognized flag\(s\): --bogus-flag/);
   assert.match(r.stderr, /Valid flags:/);
   assert.doesNotMatch(r.all, NOTHING_TO_VERIFY, 'an unrecognized flag must not fall through to a live sweep');
@@ -97,14 +97,14 @@ test('an unrecognized flag errors and exits 1, without reaching the portals chec
 
 test('--help plus an unrecognized flag still errors (unrecognized check runs before --help)', () => {
   const r = runVerify('--help', '--bogus-flag');
-  assert.notEqual(r.status, 0, `expected non-zero exit, got 0: ${r.all}`);
+  assert.ok(exitedNonZero(r), describeSpawn(r, `expected non-zero exit, got 0`));
   assert.match(r.stderr, /unrecognized flag\(s\): --bogus-flag/);
   assert.doesNotMatch(r.stdout, /Usage:/, '--help must not print/exit 0 while an unrecognized flag is present');
 });
 
 test('a mistyped known flag (--fil for --file) is rejected, not silently ignored', () => {
   const r = runVerify('--fil', FILE_PORTALS);
-  assert.notEqual(r.status, 0, `expected non-zero exit, got 0: ${r.all}`);
+  assert.ok(exitedNonZero(r), describeSpawn(r, `expected non-zero exit, got 0`));
   assert.match(r.stderr, /unrecognized flag\(s\): --fil/);
   assert.doesNotMatch(r.all, NOTHING_TO_VERIFY, 'a mistyped flag must not fall through to a live sweep');
 });
@@ -140,21 +140,21 @@ test('--file=<path> (the = form) is honored the same as the space-separated form
 // #4254 review).
 test('a bare --file with nothing after it is rejected, not read as the current directory', () => {
   const r = runVerify('--file');
-  assert.notEqual(r.status, 0, `expected non-zero exit, got 0: ${r.all}`);
+  assert.ok(exitedNonZero(r), describeSpawn(r, `expected non-zero exit, got 0`));
   assert.match(r.stderr, /--file requires a value/);
   assert.doesNotMatch(r.all, /EISDIR/, 'a missing --file operand must be a usage error, not a raw fs crash');
 });
 
 test('--file followed by another flag treats neither as the file\'s value', () => {
   const r = runVerify('--file', '--strict');
-  assert.notEqual(r.status, 0, `expected non-zero exit, got 0: ${r.all}`);
+  assert.ok(exitedNonZero(r), describeSpawn(r, `expected non-zero exit, got 0`));
   assert.match(r.stderr, /--file requires a value/);
   assert.doesNotMatch(r.all, NOTHING_TO_VERIFY, '--strict must never be silently read as a filename');
 });
 
 test('--file= with an explicitly empty value is rejected, not read as the current directory', () => {
   const r = runVerify('--file=');
-  assert.notEqual(r.status, 0, `expected non-zero exit, got 0: ${r.all}`);
+  assert.ok(exitedNonZero(r), describeSpawn(r, `expected non-zero exit, got 0`));
   assert.match(r.stderr, /--file requires a value/);
   assert.doesNotMatch(r.all, /EISDIR/, 'an empty --file= value must be a usage error, not a raw fs crash');
 });

@@ -25,7 +25,7 @@
  *   node tracker.mjs sync [--check]             # (re)build applications.db from applications.md
  *                                               # --check: diagnose only, no write; exit 1 if issues found
  *   node tracker.mjs query [--status Applied] [--company acme] [--role designer]
- *                          [--since 2026-01-01] [--id N] [--limit 20] [--json]
+ *                          [--since 2026-01-01] [--min-score 4] [--id N] [--limit 20] [--json]
  *   node tracker.mjs history --id N             # status transition log observed across syncs
  *   node tracker.mjs export [--out FILE] [--force]  # inverse: applications.db → markdown (stdout by default)
  *                                               # --force: write even when columns would be dropped
@@ -42,7 +42,7 @@ import { pathToFileURL, fileURLToPath } from 'url';
 import { format } from 'util';
 import { getCareerOpsRoot, resolveTrackerPath } from './path-resolver.mjs';
 import { localToday } from './lib/local-today.mjs';
-import * as yaml from 'js-yaml';
+import { loadYaml } from './lib/yaml-document.mjs';
 import {
   resolveColumns, detectColumns, isHeaderRow, isSeparatorRow, LEGACY_COLMAP,
 } from './tracker-parse.mjs';
@@ -213,7 +213,7 @@ function loadStates(ctx) {
     ctx.error(`Error: ${STATES_PATH} not found — cannot validate statuses (broken install: templates/states.yml ships with career-ops).`);
     throw new TrackerExit(1);
   }
-  const doc = yaml.load(readFileSync(STATES_PATH, 'utf-8'));
+  const doc = loadYaml(readFileSync(STATES_PATH, 'utf-8'));
   const byKey = new Map(); // lowercased label/alias → canonical label
   const labels = [];
   for (const s of doc?.states || []) {
@@ -685,6 +685,13 @@ async function query(args, ctx) {
     if (!DATE_RE.test(since)) { ctx.error('Error: --since must be YYYY-MM-DD'); throw new TrackerExit(1); }
     where.push('date >= ?'); params.push(since);
   }
+  if (args.some(arg => arg === '--min-score' || arg.startsWith('--min-score='))) {
+    const raw = flagValue(args, '--min-score') ?? '';
+    const minScore = raw.trim() === '' ? NaN : Number(raw);
+    if (!(minScore >= 0 && minScore <= 5)) { ctx.error('Error: --min-score must be a number from 0 to 5'); throw new TrackerExit(1); }
+    const scoreText = "REPLACE(TRIM(score, '*'), ',', '.')";
+    where.push(`${scoreText} GLOB '[0-9]*' AND CAST(${scoreText} AS REAL) >= ?`); params.push(minScore);
+  }
   const idRaw = flagValue(args, '--id');
   if (args.some(arg => arg === '--id' || arg.startsWith('--id='))) {
     const id = parseApplicationId(idRaw);
@@ -1008,10 +1015,10 @@ const SUBCOMMAND_FLAGS = {
       + '  --check: diagnose only, no write; exit 1 if issues found',
   },
   query: {
-    known: ['--status', '--company', '--role', '--since', '--id', '--limit', '--json', '--help', '-h'],
-    valueFlags: ['--status', '--company', '--role', '--since', '--id', '--limit'],
+    known: ['--status', '--company', '--role', '--since', '--min-score', '--id', '--limit', '--json', '--help', '-h'],
+    valueFlags: ['--status', '--company', '--role', '--since', '--min-score', '--id', '--limit'],
     usage: 'Usage: node tracker.mjs query [--status Applied] [--company acme] [--role designer]\n'
-      + '                              [--since 2026-01-01] [--id N] [--limit 20] [--json]',
+      + '                              [--since 2026-01-01] [--min-score 4] [--id N] [--limit 20] [--json]',
   },
   history: {
     known: ['--id', '--help', '-h'],

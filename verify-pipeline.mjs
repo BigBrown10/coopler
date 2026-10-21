@@ -30,7 +30,7 @@ import { fileURLToPath } from 'url';
 import { getCareerOpsRoot, resolveTrackerPath } from './path-resolver.mjs';
 import {
   looksLikeScoreCell, isSeparatorRow, isHeaderRow, resolveColumns,
-  normalizeTextKey, normalizeVia, unwrapReportUrlToken,
+  normalizeTextKey, normalizeVia, unwrapReportUrlToken, parseMarkdownLinks,
 } from './tracker-parse.mjs';
 import { CONTROL_CHARS, findDeadReportLink, trackerLinkDirsFor } from './tracker-utils.mjs';
 import { normalizeUrl } from './url-key.mjs';
@@ -380,14 +380,14 @@ if (dupReports === 0) ok('No duplicate reports for the same company+role');
 const referencedNums = new Set();
 for (const e of entries) {
   const linkTexts = [...e.report.matchAll(/\[(\d+)\]/g)];
-  const linkTargets = [...e.report.matchAll(/\]\(([^)]+)\)/g)];
+  const linkTargets = parseMarkdownLinks(e.report).map(link => link.target);
   if (linkTexts.length === 0 && linkTargets.length === 0) {
     referencedNums.add(e.num);
     continue;
   }
   for (const lt of linkTexts) referencedNums.add(parseInt(lt[1], 10));
   for (const lt of linkTargets) {
-    const m = lt[1].split(/[\\/]/).pop().match(/^(\d+)-/);
+    const m = lt.split(/[\\/]/).pop().match(/^(\d+)-/);
     if (m) referencedNums.add(parseInt(m[1], 10));
   }
 }
@@ -590,9 +590,9 @@ if (!existsSync(PORTALS_FILE)) {
     const { findUnclaimedEntries } = await import('./audit-portals.mjs');
     const { loadProviders } = await import('./providers/_registry.mjs');
     const { mergeProviderPlugins } = await import('./plugins/_engine.mjs');
-    const yaml = await import('js-yaml');
+    const { loadYaml } = await import('./lib/yaml-document.mjs');
 
-    const cfg = yaml.load(readFileSync(PORTALS_FILE, 'utf-8')) || {};
+    const cfg = loadYaml(readFileSync(PORTALS_FILE, 'utf-8')) || {};
     // Both sections, because scan.mjs resolves both through the same registry:
     // an unclaimed aggregator board is exactly as dead as an unclaimed company.
     const entries = [

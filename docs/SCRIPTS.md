@@ -30,11 +30,14 @@ All scripts live in the project root as `.mjs` modules. Most are exposed via
 | `node check-liveness.mjs --tracker [--status=Evaluated,Applied]` | `check-liveness.mjs` | Check the postings of open tracker rows (`Evaluated` and `Applied` by default). Each row's posting is its URL cell or its report's `**URL:**`. Rows with neither are listed by number |
 | `node check-liveness.mjs --tracker --discard-expired [--apply]` | `check-liveness.mjs` | Check the postings of Evaluated and Applied tracker rows, then move Evaluated rows whose posting is `expired` to Discarded with the note `posting closed YYYY-MM-DD`. Without `--apply` it is a dry run. Uncertain verdicts and Applied rows stay as they are |
 | `npm run extract` | `browser-extract.mjs` | Headless read-only page extractor (opt-in `scan.extractor: cli`) — compact JSON for scan/JD; a posting whose ATS is in `JD_TEXT_API_ATS` (`liveness-api.mjs`) is first read without a browser, falling back to the page when that read is inconclusive, and an empty jd extraction exits 1 with `code: empty_text` |
-| `node fetch-jd.mjs <url>` | `fetch-jd.mjs` | JD text on stdout, read without a browser, for a posting whose ATS is in `JD_TEXT_API_ATS` (`liveness-api.mjs`) — exit 1 with empty stdout for any other ATS and for an inconclusive read, so a caller falls back to its browser/WebFetch path |
+| `node fetch-jd.mjs <url>` | `fetch-jd.mjs` | JD text on stdout, read without a browser (including canonical and short-link Workable postings with description, requirements and benefits), for a posting whose ATS is in `JD_TEXT_API_ATS` (`liveness-api.mjs`) — exit 1 with empty stdout for any other ATS and for an inconclusive read, so a caller falls back to its browser/WebFetch path |
 | `npm run scan` | `scan.mjs` | Zero-token portal scanner |
 | `npm run scan:full` | `scan-ats-full.mjs` | Reverse ATS discovery scanner |
-| `node web/scripts/scheduled-jobs-runner.mjs` | `web/scripts/scheduled-jobs-runner.mjs` | Run one due local scheduled scan (normally invoked by Task Scheduler) |
+| `npm run scan:hn` | `scan-hn.mjs` | Hacker News "Who is hiring?" scanner, filtered by `hn_hiring.keywords` |
+| `node web/scripts/scheduled-jobs-runner.mjs` | `web/scripts/scheduled-jobs-runner.mjs` | Run one due local scheduled scan (normally invoked by the OS scheduler: Task Scheduler, launchd or cron) |
 | `powershell.exe -NoProfile -ExecutionPolicy Bypass -File web/scripts/install-scan-schedule.ps1` | `web/scripts/install-scan-schedule.ps1` | Install the 15-minute Windows scheduled-jobs queue worker for the logged-in current user |
+| `sh web/scripts/install-scan-schedule.sh` | `web/scripts/install-scan-schedule.sh` | Install the 15-minute scheduled-jobs queue worker on macOS (launchd) or Linux (cron) for the current user |
+| `sh web/scripts/uninstall-scan-schedule.sh` | `web/scripts/uninstall-scan-schedule.sh` | Remove the macOS launchd agent or Linux cron line for the scheduled-jobs queue worker |
 | `npm run company:funded` | `company-funded.mjs` | Review-first discovery of recently funded companies |
 | `npm run validate:portals` | `validate-portals.mjs` | Validate portals.yml shape before scanning |
 | `npm run tracker` | `tracker.mjs` | SQLite derived index over applications.md — sync/query/history/export |
@@ -42,6 +45,7 @@ All scripts live in the project root as `.mjs` modules. Most are exposed via
 | `npm run invite-match` | `invite-match.mjs` | Fuzzy-match a pasted interview-invite email against `data/applications.md` |
 | `npm run application:init` | `application-artifacts.mjs` | Initialize one versioned application-scoped JD/CV/PDF artifact bundle |
 | `npm run paste-reply` | `paste-reply.mjs` | Manual/no-Gmail input into the `reply-watch.mjs` classification pipeline |
+| `npm run closing-soon` | `closing-soon.mjs` | List tracker rows whose Notes (or matching `jds/` capture) carry a closing date within N days, plus separate `overdue` and `unparsed` groups (read-only) |
 | `npm run freshness` | `check-table-freshness.mjs` | Staleness validator for jurisdiction data tables (`as_of` / `next_effective` watchdog) |
 | `npm run jd-archive` | `check-jd-archive.mjs` | Validate every `reports/*.md` has an archived JD (embedded section or `jds/` capture) — flags `missing-jd-archive` |
 | `npm run openai:tailor` | `openai-tailor.mjs` | Tailor a CV via any OpenAI-compatible endpoint (headless companion to `openai-eval.mjs`) |
@@ -416,13 +420,13 @@ node funnel-velocity.mjs --self-test
 node funnel-velocity.mjs --benchmarks path/to/benchmarks.yml
 ```
 
-Ledger line format (TSV, appended by `set-status.mjs`, `#`-prefixed lines are comments):
+Ledger line format (TSV, appended by `set-status.mjs` and, for a status a kept duplicate takes over, `dedup-tracker.mjs`; `#`-prefixed lines are comments):
 
 ```text
 {tracker#}\t{YYYY-MM-DD}\t{from}\t{to}\t{source}\t{note}
 ```
 
-`from` may be `-` (unknown prior state); `to` = `-` retracts the row's latest observation; a later `correction`-source line with the same (tracker#, to) replaces the earlier observation's date. Sources: set-status | correction | backfill | manual (only set-status/correction feed day-math).
+`from` may be `-` (unknown prior state); `to` = `-` retracts the row's latest observation; a later `correction`-source line with the same (tracker#, to) replaces the earlier observation's date. Sources are the closed set `VALID_SOURCES` in `funnel-velocity.mjs`. `backfill`, `manual` and `dedup-tracker` are counted but kept out of day-math, because they record a transition found after the fact rather than observed when it happened.
 
 **Exit codes:** `0` always (missing tracker/ledger produce an explanatory empty result), `1` self-test or benchmarks-load failure.
 
@@ -657,6 +661,24 @@ node rejection-latency.mjs --self-test
 
 ---
 
+## closing-soon
+
+Surfaces tracker rows whose posting is about to close. Posting closing dates have no structured home, so people type them into Notes (`closes 2026-10-22`, `deadline Nov 4`); this script reads them and lists the rows closing within `--within N` days (default 7), soonest first. Dates are recognized only after a marker (`closes`, `closing date`, `closing`, `deadline`, `apply by`): ISO `2026-10-22`, `Mon D, YYYY`, `Mon D` (this year, or next year when it passed more than 60 days ago) and `MM/DD/YYYY` only when unambiguous. Anything else after a marker (`04/05/2026`, `4 Nov 2026`, `TBD`) is listed under `unparsed` instead of being guessed. Rows already past their date go in a separate `overdue` group (most recently overdue first). When a row's Notes carry no marker at all, the `jds/` capture resolved by report number (`jd-capture.mjs`; text captures only) is read instead. Several dates in one row surface the earliest. Rows are filtered by `--status` (default `Evaluated`; any canonical state from `templates/states.yml`, comma-separated).
+
+Read-only and zero-LLM: the tracker is read once and parsed defensively through `tracker-parse.mjs`; nothing is written and no lock is taken, so a concurrent session rewriting the tracker cannot be disturbed. No tracker column or schema is involved.
+
+```bash
+node closing-soon.mjs                          # JSON (closingSoon, overdue, unparsed)
+node closing-soon.mjs --summary                # human-readable table
+node closing-soon.mjs --within 14 --status Evaluated,Applied
+node closing-soon.mjs --today 2026-10-17       # deterministic runs/tests
+node closing-soon.mjs --tracker path/to/applications.md --jds path/to/jds
+```
+
+**Exit codes:** `0` on a report (a missing tracker yields an empty result with a warning), `1` unrecognized flag, `2` invalid `--today` / `--within` / `--status` value.
+
+---
+
 ## update:check
 
 Checks whether a newer career-ops release is published. Changes merged to `main` between releases never report an update: `update` installs the release, not `main`. Outputs JSON to stdout:
@@ -827,6 +849,8 @@ Give a lane its own `CAREER_OPS_SCAN_HISTORY`, not just its own pipeline. That f
 
 Defaults are unchanged, so a single-lane setup needs none of this. Note that the remaining outputs (`data/scan-runs.tsv`, `data/portal-health.tsv`, `data/applications.md`) are still shared across lanes, so `stats.mjs` and the other analytics scripts pool lanes together.
 
+**Progress:** every 25 sources, and once at the end, the scan prints a line such as `[14:02:31] scan: 50/120 sources done` to stderr. It prints under `--quiet` too, so a long unattended scan never looks stalled, and it stays out of the `--json` receipt on stdout.
+
 **Exit codes:** `0` scan completed, `1` configuration error or no portals.yml found.
 
 ---
@@ -938,6 +962,19 @@ The cost is real: a full Workday + iCIMS + BambooHR sweep becomes DNS-bound at r
 
 ---
 
+## scan:hn
+
+Scans the newest Hacker News "Ask HN: Who is hiring?" thread and queues the top-level posts whose header line ("Company | Role | Location | URL") matches `hn_hiring.keywords`:
+
+```yaml
+hn_hiring:
+  keywords: [Software Engineer, Data Engineer]   # default: [Software Engineer]
+```
+
+The keywords are this scanner's positive list, since a post header is not an ATS title. `title_filter.negative`, `location_filter` and `data/blacklist.md` apply as in `scan.mjs`, and postings already in the tracker, the pipeline or `data/scan-history.tsv` are skipped by normalized URL. The run summary counts each skip reason. A post that links nowhere is queued under its own `news.ycombinator.com/item?id=` permalink.
+
+With `GEMINI_API_KEY` set (also read by `gemini-eval`), Gemini extracts the company, title and location of each post that already matched the keywords; a post that matches none is never sent. `GEMINI_MODEL` overrides the model. If every Gemini call fails, the run exits 1.
+
 ## company:funded
 
 Review-first discovery for companies that recently raised funding. It reads structured public RSS/API sources and prints a candidate report for manual review. It never edits `portals.yml` and does not probe company websites.
@@ -973,6 +1010,7 @@ node tracker.mjs sync                     # (re)build applications.db from appli
 node tracker.mjs sync --check             # diagnose corruption only, no write (exit 1 if issues found)
 node tracker.mjs query --status Applied --since 2026-05-01
 node tracker.mjs query --company acme --json
+node tracker.mjs query --status Evaluated --min-score 4  # scored 4.0/5 or higher, not yet applied to
 node tracker.mjs history --id 42          # status transitions observed across syncs (Applied → Interview → ...)
 node tracker.mjs export                   # inverse: index → markdown table on stdout
 node tracker.mjs export --out repaired.md # write to a file (existing file backed up to .bak first)
@@ -1157,6 +1195,18 @@ first ~2000 chars) and the selected postings through that CLI's own auth and
 provider handling — review your chosen CLI's data-retention/provider settings
 before running this on sensitive CV content.
 
+Each call asks for one answer, not an agent session. It runs in an empty temp
+directory, and where the CLI has a switch for it, with tools off
+(`claude --tools "" --disallowedTools "*"`, `grok --disallowed-tools` for its shell, fetch, write and
+MCP tools, `codex exec --sandbox read-only`, `pi --no-tools`,
+`copilot --available-tools` and `--disable-mcp-server` with one name that
+matches no tool or server, so neither built-in nor MCP tools are offered, and opencode with
+`OPENCODE_CONFIG_CONTENT` denying every permission). The prompt asks for scores from
+the listed company, title and URL text, without opening the postings.
+A call times out after 180 s; set `CAREER_OPS_RANK_TIMEOUT_MS` to change that.
+Every row left unranked is listed with the reason, and a run where every call
+fails or returns no usable JSON exits 1, `--dry-run` included.
+
 ```bash
 node rank-pipeline.mjs                  # rank up to 20 pending entries
 node rank-pipeline.mjs --limit 10
@@ -1264,6 +1314,7 @@ These have no `npm run` binding — modes and agents call them with
 
 | Invocation | Purpose |
 |------------|---------|
+| `node onboard-write.mjs --answers <file.json\|-> [--target <dir>] [--force] [--only profile\|portals]` | Onboarding writer: copies `config/profile.example.yml` and `templates/portals.example.yml` line for line and changes only the answered fields (contact, targets, archetypes, narrative, title keywords, extra negatives, location allow-list, 45-day posting age). Keeps existing files unless `--force`, and `--only` limits a run to one file; prints `{"written":[],"kept":[]}` |
 | `node set-status.mjs <report#\|company> <State> [--note]` | Canonical tracker write path: strict states.yml validation, shared lock, atomic write. Modes call this instead of hand-editing `applications.md` |
 | `node mark-pdf-ready.mjs <report#> [--dry-run] [--json]` | Mark the matched tracker's PDF cell ready after the web PDF render path finishes; resolves the report number, uses the shared tracker lock, and writes atomically |
 | `node sync-pdf-flags.mjs [--dry-run] [--prune [--write]] [--json]` | Reconcile tracker PDF column against data/pdf-index.tsv; `--prune` drops manifest rows whose PDF is gone from disk (dry run by default, `--write` to commit) |
@@ -1421,6 +1472,7 @@ A bare number or company name is convenient, but becomes ambiguous when multiple
 - `--role <role>`: Narrowing selector that refines a company, report, row, or bare-number match when multiple tracker rows exist for a single target.
 - `--on <date>`: Specifies an explicit transition date (YYYY-MM-DD) for status logs and notes.
 - `--json`: Formats command output as structured JSON.
+- `--expect-row <hash>` / `--expect-status <state>`: For a caller that showed the row to a person before writing (`reply-watch.mjs`). Under the lock, refuse the write if any cell but Status differs from the reviewed row (`trackerRowIdentity` in `tracker-parse.mjs`), or if the status is no longer the reviewed one and not already `<state>`. Unlike `--expect-tracker`, a write to another row does not trip them.
 
 `--row` and `--report` are mutually exclusive. Because an explicit selector answers the report-mismatch guard rather than overriding it, `--row` bypasses that guard without needing `--force` (which silences the check while the ambiguity is still real).
 
@@ -1436,7 +1488,7 @@ Exit codes (the shared `CLI_EXIT` contract in `tracker-utils.mjs`, so these valu
 - `0` success, including an idempotent no-op re-run that changed nothing.
 - `1` for an invalid or conflicting selector, or a non-canonical state.
 - `2` when the selector matches no tracker row.
-- `3` when a bare numeric selector triggers the report-number mismatch guard (`report-number-mismatch`), or a company matches several rows.
+- `3` when a bare numeric selector triggers the report-number mismatch guard (`report-number-mismatch`), a company matches several rows, or a review guard refuses (`tracker-changed`, `row-changed`, `status-changed`).
 - `4` when the shared tracker lock is busy — retryable, unlike the others.
 
 Nothing is written on any non-zero exit.

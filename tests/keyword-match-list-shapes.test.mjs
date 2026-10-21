@@ -119,6 +119,36 @@ check('a shorter run of the same fence character does not close the fence', () =
   assert.deepEqual(extractKeywords(longer), ['SQL', 'Tableau']);
 });
 
+check('fence indentation decides what a delimiter is', () => {
+  // Also found by CodeRabbit review, on #5362. FENCE_RE's `^ {0,3}` is what
+  // separates a fence from an indented code block (§4.9), but both the opener
+  // and the closer were matched on a TRIMMED line, so no line ever carried an
+  // indent into the test. An indented run of the same character could
+  // therefore close a real fence, and a `## ` heading after it left the keyword
+  // list with nothing to show for the loss.
+  const B = '```';
+  const B4 = '````';
+
+  // A real fence (0-3 spaces) is not closed by a four-space indented run. The
+  // heading is the witness: inside the fence it is a keyword, outside it would
+  // have ended the section. The indented run is longer than the opener, so the
+  // length rule ACCEPTS it and indentation is the only thing that can reject it
+  // — which is what makes this case isolate the indent bug.
+  const indentedNoClose = `## Keywords extracted\n\n${B}\nSQL\n    ${B4}\n## not a heading\n${B}\n\n## Next\n`;
+  assert.deepEqual(extractKeywords(indentedNoClose), ['SQL', B4, '## not a heading']);
+
+  // The other half, and the reason this needed more than a one-line change: an
+  // indented code block's own closer is indented too. Reading those delimiters
+  // as fences is what lets the contents through instead of leaking ``` as
+  // keywords, so the stricter rule must not be applied to them.
+  const indentedBlock = `## Keywords extracted\n\n    ${B}\n    SQL, Tableau\n    ${B}\n\n## Next\n`;
+  assert.deepEqual(extractKeywords(indentedBlock), ['SQL', 'Tableau']);
+
+  // Up to three spaces is still inside the fence's own range, so it closes.
+  const threeSpaces = `## Keywords extracted\n\n${B}\nSQL\n   ${B}\n\n## Next\n`;
+  assert.deepEqual(extractKeywords(threeSpaces), ['SQL']);
+});
+
 check('a thematic break under the list is skipped, not read as keywords', () => {
   for (const rule of ['---', '***', '___', '- - -', '*****']) {
     assert.deepEqual(extractKeywords(block(`SQL, Tableau\n${rule}`)), ['SQL', 'Tableau'], rule);

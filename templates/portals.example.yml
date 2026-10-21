@@ -175,6 +175,18 @@
 # Turn strict on for those sweeps. It only bites when a restricting tier
 # (allow / block / block_hard) is set; `strict: true` alone restricts nothing.
 #
+# `remote_title_fallback` defaults to true (also when omitted). After a nonempty
+# allow list fails to match the structured location or a supported URL hint,
+# an explicit Remote title can still admit the posting. Set false to disable
+# only that last rescue in both scan.mjs and scan-ats-full.mjs. Unlike strict,
+# this does not change missing-location handling, tier precedence, URL hints,
+# or an explicitly allowed Remote location. It is not an eligibility check.
+# Opting out can miss remote roles listed under an unrelated hiring office.
+# For configured scan.mjs targets, field_filters.location.positive plus
+# filter_on: [title, location] is an existing alternative that gates the
+# structured location only. Reverse scans do not consume those field gates;
+# unlike the shared location filter, that alternative does not use URL hints.
+#
 # Example below targets US-based remote + a couple of US metros, blocking
 # common foreign hubs. Customize to your geography.
 
@@ -184,6 +196,7 @@
 #     - "United States"   # also admits City, ST homonyms (Dublin, OH) via USPS states
 #     - "New York"
 #   # strict: true       # reject postings with no location — see note above
+#   # remote_title_fallback: false  # require allow to match location evidence
 #   allow:
 #     - "Remote"
 #     - "United States"
@@ -1177,6 +1190,7 @@ search_queries:
 #   pinpoint        <slug>.pinpointhq.com
 #   prevueaps       <tenant>.prevueaps.ca  (or api: field; domainId resolved from the tenant's /jobs/ page)
 #   rippling        ats.rippling.com/<slug>/jobs
+#   dover           app.dover.com/<Company>/careers/<board-uuid>
 #   jibeapply       <slug>.jibeapply.com/jobs  (or provider: jibeapply + api: for a branded host's own /jobs path)
 #   jobvite         jobs.jobvite.com/<slug>  (add company_eid: to skip the board lookup — see the stanza below)
 #   tencent         careers.tencent.com  (zh-CN board; each keywords: entry queried server-side, results deduped)
@@ -1288,6 +1302,12 @@ search_queries:
 #   max_pages: 10          # optional page cap (up to 1000 jobs/page, default 10, max 50) —
 #                          # raise it for a tenant with 10,000+ open postings (a warning
 #                          # is logged if the cap truncates real results)
+#   enabled: true
+#
+# - name: Example Dover Co
+#   careers_url: https://app.dover.com/ExampleCo/careers/00000000-0000-4000-8000-000000000000
+#                          # the careers-page link; the board uuid is the last segment
+#   max_pages: 5           # optional page cap (300 jobs/page, default 5, max 20)
 #   enabled: true
 #
 # - name: Example JibeApply Co

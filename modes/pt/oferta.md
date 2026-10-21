@@ -667,9 +667,12 @@ Salvar avaliação completa em `reports/{###}-{company-slug}-{YYYY-MM-DD}.md`.
      Nomear a linha padrão ainda ajuda o leitor a situar o cargo; o que não deve
      fazer é substituir um target que o usuário realmente tem. -->
 **Score:** {X/5}
+**Decisão:** {Candidatar | Considerar | Pesquisar primeiro | Não candidatar}
 **Legitimidade:** {High Confidence | Proceed with Caution | Suspicious}
 **Work Auth:** {✅ Patrocina | ➖ Não necessário | ⚠️ Não declarado | ⛔ Sem sponsorship}
 **PDF:** {caminho ou pendente}
+
+{a frase de candidatar ou não, copiada palavra por palavra}
 
 ---
 

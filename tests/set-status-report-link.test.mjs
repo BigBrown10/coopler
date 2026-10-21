@@ -9,7 +9,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { detectColumns, parseTrackerRow, resolveColumns } from '../tracker-parse.mjs';
 import { analyzeFromContent } from '../followup-cadence.mjs';
-import { describeSpawn } from './helpers/describe-spawn.mjs';
+import { describeSpawn, exitedNonZero } from './helpers/describe-spawn.mjs';
 
 const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 const HEADER = '| # | Date | Company | Role | Score | Status | PDF | Report | Notes |\n';
@@ -117,7 +117,7 @@ for (const [name, row] of [
     const before = HEADER + row;
     const f = fixture(t, before);
     const result = run(f, ['--report-link', '7', 'Applied', '--note', 'follow-up']);
-    assert.notEqual(result.status, 0);
+    assert.ok(exitedNonZero(result), describeSpawn(result, 'expected a non-zero exit'));
     unchanged(f, before);
   });
 }

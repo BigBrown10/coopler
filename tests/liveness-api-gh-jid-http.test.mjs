@@ -5,8 +5,9 @@
 // resolveAtsApi used to reject every non-https URL, so these fell to the browser,
 // which timed out (block.xyz) or followed a redirect that dropped the id
 // (stability.ai) and answered `uncertain` for live postings. The embed provider's
-// API hosts are fixed, so the page's scheme carries no risk; every other provider
-// still rejects plain http (the LinkedIn suite pins that for its own rung).
+// API hosts are fixed, so the page's scheme carries no risk. Tencent opts in for
+// the same reason (the zh-cn suite pins it); every other provider still rejects
+// plain http (the LinkedIn suite pins that for its own rung).
 //
 // Run:  node --test tests/liveness-api-gh-jid-http.test.mjs
 

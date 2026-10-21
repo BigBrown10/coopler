@@ -2,17 +2,31 @@
 
 > Apply `voice-dna.md` (if present) to free-text answers and cover-letter fields — full guardrail, conversational voice included (Tier 1 + Tier 2). See `_writing.md` → Voice DNA.
 
-Interactive mode for when the candidate is filling out an application form in Chrome. It reads what is on the screen, loads the previous context of the job, and generates personalized responses for each form question.
+Interactive mode for filling out an application form. Open the form in a Playwright browser this project launches, load the previous context of the job, and generate a response for each question.
+
+**Unattended runs** (`modes/_shared.md` → **Unattended runs**): never ask, never wait and never submit. A blacklist hit stops before drafting and ends with `needs_confirmation: blacklist "{company}" - rerun with "apply anyway" to draft`. A company or role mismatch, or an agency that needs acknowledgement, stops before drafting and ends with `needs_confirmation: apply_preflight {company} - confirm the company and role, then rerun`. A posting that appears closed ends with `needs_confirmation: posting_closed {company} - rerun with the reason to apply anyway`. When liveness cannot be verified, the run ends with `needs_confirmation: liveness_unverified {company} - confirm the company, role and active posting, then rerun`. Otherwise draft only answers backed by the tailored CV, `cv.md`, `config/profile.yml`, the report, or answers the prompt gives for this application, leave every other field blank, and end with `needs_confirmation: apply_input {n} questions - answer them, then rerun`.
+
+## Scope
+
+Work only inside this checkout. Run `node apply-scope.mjs root` and read or search only the directories it prints. That list is this checkout, plus the data root when `CAREER_OPS_ROOT` or `CAREER_OPS_DATA_DIR` is set.
+
+Do not search the home directory. Do not grep or open another career-ops install.
+
+Open the form in a Playwright browser this project launches. Run `node apply-scope.mjs launch-options` and pass that object to `chromium.launch`. Do not call `chromium.connect` or `connectOverCDP`. Do not read `DevToolsActivePort`. Do not pass a remote-debugging port or a Chrome user-data directory.
+
+If Playwright is not available, ask the candidate to paste the questions or share a screenshot.
+
+Do not submit the form. Stop before Submit, Send, or Apply. Continue only after the candidate confirms they submitted it.
 
 ## Requirements
 
-- **Best with Playwright in visible mode**: In visible mode, the candidate sees the browser and the agent can interact with the page.
-- **Without Playwright**: the candidate shares a screenshot or pastes the questions manually.
+- **Best with Playwright in visible mode.** The candidate sees the browser this project launched. The agent uses that page.
+- **Without Playwright.** The candidate shares a screenshot or pastes the questions. Do not attach to a browser the candidate already has open.
 
 ## Workflow
 
 ```text
-1. DETECT      → Read active Chrome tab (screenshot/URL/title)
+1. DETECT      → Open the posting in this project's Playwright browser
 2. IDENTIFY    → Extract company + role from the page
 3. SEARCH      → Match against existing reports in reports/
 4. LOAD        → Read full report + Section H / Application Answers (if they exist)
@@ -132,17 +146,17 @@ Before drafting answers, read the matched report's Block G fixed-term finding an
 
 ## Step 1 — Detect the job
 
-**With Playwright:** Take a snapshot of the active page. Read title, URL, and visible content.
+**With Playwright:** Run `node apply-scope.mjs launch-options` and launch Chromium with that object. Open the posting URL in that browser. Snapshot that page. Read the title, the URL, and the visible content. Do not attach to a browser the candidate already has open. Do not read `DevToolsActivePort`.
 
 **Without Playwright:** Ask the candidate to:
 - Share a screenshot of the form (Read tool can read images)
 - Or paste the form questions as text
-- Or say company + role so we can search for it
+- Or say the company and the role so we can search `reports/` under the roots from `node apply-scope.mjs root`
 
 ## Step 2 — Identify and search for context
 
 1. Extract company name and role title from the page
-2. Search in `reports/` by company name (case-insensitive grep)
+2. Search `reports/` under every root printed by `node apply-scope.mjs root` (this checkout, plus the configured data root when set) by company name (case-insensitive grep). Do not search only the checkout when the data root holds the reports.
 3. If there is a match → load the full report
 4. If there is a `## Application Answers` section → recover it through the strict reader, never by re-reading the rendered markdown as prose:
 
