@@ -643,7 +643,7 @@
 
 ## Пост-оцінка
 
-Перед збереженням звіту застосуйте `modes/_shared.md` → Evidence confidence для Global Score. Після Risk Summary включіть `## Підтвердження оцінки` з одним рядком на вимір оцінювання (`CV match`, `North Star alignment`, `Compensation`, `Cultural signals`, `Red flags`): статус доказів (`supported`, `partial`, `unknown`), конкретне джерело або спостереження, і невирішене питання. Додайте після цього `**Evidence confidence:** {High | Medium | Low} — {основна причина}` і до трьох пріоритетів верифікації. Це впевненість у доказах балу, окрема від рівня легітимності вакансії Блоку G. Віддзеркальте п'ять статусів і пріоритетів у Machine Summary `score_evidence` та `confidence_gaps`, використовуючи канонічну схему в `batch/batch-prompt.md`.
+Перед збереженням звіту застосуйте `modes/_shared.md` → Evidence confidence для Global Score. Після Risk Summary включіть `## Score Evidence` з одним рядком на вимір оцінювання (`CV match`, `North Star alignment`, `Compensation`, `Cultural signals`, `Red flags`): статус доказів (`supported`, `partial`, `unknown`), конкретне джерело або спостереження, і невирішене питання. Додайте після цього `**Evidence confidence:** {High | Medium | Low} — {основна причина}` і до трьох пріоритетів верифікації. Це впевненість у доказах балу, окрема від рівня легітимності вакансії Блоку G. Віддзеркальте п'ять статусів і пріоритетів у Machine Summary `score_evidence` та `confidence_gaps`, використовуючи канонічну схему в `batch/batch-prompt.md`.
 
 **ЗАВЖДИ** після генерації блоків A-G:
 
@@ -713,7 +713,7 @@
 ## Risk Summary
 (один рядок на сигнал ризику, фіксований порядок — див. секцію Risk Summary вище)
 
-## Підтвердження оцінки
+## Score Evidence
 (п'ять вимірів оцінювання, статус доказів і джерело, невирішені питання, рівень evidence-confidence та пріоритети верифікації)
 
 ## H) Чернетки відповідей на форму

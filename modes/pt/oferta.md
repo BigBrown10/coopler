@@ -636,7 +636,7 @@ Aplique todas as regras de linguagem da seção Professional Writing de `_writin
 
 ## Pós-avaliação
 
-Antes de salvar o report, aplique `modes/_shared.md` → Evidence confidence para o Global Score. Após o Risk Summary, inclua `## Evidência de Pontuação` com uma linha por dimensão de pontuação (`CV match`, `North Star alignment`, `Compensation`, `Cultural signals`, `Red flags`): status de evidência (`supported`, `partial`, `unknown`), fonte concreta ou observação e questão não resolvida. Siga com `**Confiança da evidência:** {High | Medium | Low} — {motivo principal}` e até três prioridades de verificação. Isto é a confiança na evidência da pontuação, separada do tier de legitimidade da vaga do Bloco G. Espelhe os cinco status e prioridades no Machine Summary `score_evidence` e `confidence_gaps` usando o schema canônico em `batch/batch-prompt.md`.
+Antes de salvar o report, aplique `modes/_shared.md` → Evidence confidence para o Global Score. Após o Risk Summary, inclua `## Score Evidence` com uma linha por dimensão de pontuação (`CV match`, `North Star alignment`, `Compensation`, `Cultural signals`, `Red flags`): status de evidência (`supported`, `partial`, `unknown`), fonte concreta ou observação e questão não resolvida. Siga com `**Confiança da evidência:** {High | Medium | Low} — {motivo principal}` e até três prioridades de verificação. Isto é a confiança na evidência da pontuação, separada do tier de legitimidade da vaga do Bloco G. Espelhe os cinco status e prioridades no Machine Summary `score_evidence` e `confidence_gaps` usando o schema canônico em `batch/batch-prompt.md`.
 
 **SEMPRE** após gerar os blocos A-G:
 
@@ -662,14 +662,14 @@ Salvar avaliação completa em `reports/{###}-{company-slug}-{YYYY-MM-DD}.md`.
      corresponde a nenhum, este campo NÃO é deixado em branco e NÃO é hesitado —
      um campo vazio parece falha da ferramenta, e "possivelmente um híbrido de X e Y"
      é a coerção que isto visa prevenir. Escreva uma das opções:
-       Não é um target — padrão mais próximo: {linha da tabela de _shared.md}
-       Não é um target — sem correspondência próxima
+       Not a target — closest default: {linha da tabela de _shared.md}
+       Not a target — no close match
      Nomear a linha padrão ainda ajuda o leitor a situar o cargo; o que não deve
      fazer é substituir um target que o usuário realmente tem. -->
 **Score:** {X/5}
 **Decisão:** {Candidatar | Considerar | Pesquisar primeiro | Não candidatar}
 **Legitimacy:** {High Confidence | Proceed with Caution | Suspicious}
-**Work Auth:** {✅ Patrocina | ➖ Não necessário | ⚠️ Não declarado | ⛔ Sem sponsorship}
+**Work Auth:** {✅ Sponsors | ➖ Not needed | ⚠️ Unstated | ⛔ No sponsorship}
 **PDF:** {caminho ou pendente}
 
 {a frase de candidatar ou não, copiada palavra por palavra}
@@ -706,7 +706,7 @@ Salvar avaliação completa em `reports/{###}-{company-slug}-{YYYY-MM-DD}.md`.
 ## Risk Summary
 (uma linha por sinal de risco, ordem fixa — veja a seção Risk Summary acima)
 
-## Evidência de Pontuação
+## Score Evidence
 (cinco dimensões de pontuação, status de evidência e fonte, questões não resolvidas, tier de confiança da evidência e prioridades de verificação)
 
 ## H) Rascunhos de Respostas para Candidatura
@@ -720,19 +720,19 @@ Salvar avaliação completa em `reports/{###}-{company-slug}-{YYYY-MM-DD}.md`.
 ## Keyword Coverage
 (auto-gerado por `node keyword-match.mjs <report>` — % de cobertura, presente, fino, ausente)
 
-## Descrição da Vaga (arquivada verbatim)
+## Job Description (archived verbatim)
 (o texto completo da vaga, colado verbatim — veja requisito abaixo)
 ```
 
 **Machine Summary (obrigatório):** todo report carrega uma cerca YAML `## Machine Summary` diretamente após o cabeçalho — mesmo schema, nomes exatos de campos e regras do bloco "Machine Summary" em `batch/batch-prompt.md` (não duplique o schema aqui; aquele arquivo é a fonte da verdade). Inclui `advertised_comp`: o valor salarial do próprio JD **verbatim** (ex.: `"80-90k EUR"`), ou `null` quando o JD não declara nada — nunca estimado, nunca substituído por dados de mercado pesquisados. Esta chave alimenta a observação de salário anunciado lida por `node salary-gap.mjs`. Também inclui `risk_summary`: o bloco Risk Summary espelhado como um mapa (schema e valores de enum em `batch/batch-prompt.md`), e `requirement_importance`: a tabela do Bloco B espelhada linha por linha, carregando o tier de evidência, banda de importância e match de cada linha (`[]` quando o JD não gera lista de requisitos utilizável). O limite `inferred` do gate do Bloco B vale no YAML também — `importance` nunca é `critical` ou `high` quando `evidence: inferred`.
 
-**Arquivamento do JD (obrigatório, #2789):** todo report DEVE carregar uma seção `## Descrição da Vaga (arquivada verbatim)` com o texto completo da vaga colado como está — nunca resumido, nunca parafraseado. Um cabeçalho `**URL:**` sozinho não é um arquivo: é um ponteiro vivo que apodrece quando a vaga fecha ou é removida, o que confiavelmente acontece em algum momento nas semanas entre a candidatura e uma rodada posterior de entrevista, e não há como recuperar os requisitos originais depois disso. Este é o mecanismo primário, não um fallback — o report é o único artefato garantido de ser escrito e rastreado, diferentemente de um arquivo separado `jds/`. Se o JD for muito longo, ou você não puder citá-lo na íntegra (limite de citação de ferramenta de fetch ou guarda de copyright), não o parafraseie. Capture-o por máquina com `archive-posting.mjs <url> --company={company-slug} --report={num}` (o slug no nome do arquivo do report, incluindo `confidential-{agency-slug}`) (`fetch-jd.mjs` imprime o texto de uma vaga de ATS conhecido) e, no lugar do texto, coloque nesta seção **exatamente** `Veja jds/{filename} para o arquivo completo (archive-posting.mjs --report={num}).` — `check-jd-archive.mjs` apenas credita esta frase de ponteiro canônica quando ela resolve de volta para o número daquele report via `findCaptureForReport`; uma captura `jds/{slug}.md` apenas com slug sem número de report não valida aqui. Este fraseado exato importa: a verificação apenas trata uma seção como ponteiro (exigindo resolução) quando a seção não é nada além desta frase — qualquer prosa adicional ao lado dela é lida como o próprio texto arquivado, não um ponteiro, então não misture os dois. Capturas apenas com slug permanecem válidas para `jd-skill-gap.mjs` executado standalone, fora de uma avaliação completa, onde não há report para vincular de volta. `check-jd-archive.mjs` valida que todo `reports/*.md` tem uma forma ou outra e está conectado em `test-all.mjs` — um report sem ambas é uma falha de teste. Uma reformulação não é um arquivo: `check-jd-archive.mjs` não credita...
+**Arquivamento do JD (obrigatório, #2789):** todo report DEVE carregar uma seção `## Job Description (archived verbatim)` com o texto completo da vaga colado como está — nunca resumido, nunca parafraseado. Um cabeçalho `**URL:**` sozinho não é um arquivo: é um ponteiro vivo que apodrece quando a vaga fecha ou é removida, o que confiavelmente acontece em algum momento nas semanas entre a candidatura e uma rodada posterior de entrevista, e não há como recuperar os requisitos originais depois disso. Este é o mecanismo primário, não um fallback — o report é o único artefato garantido de ser escrito e rastreado, diferentemente de um arquivo separado `jds/`. Se o JD for muito longo, ou você não puder citá-lo na íntegra (limite de citação de ferramenta de fetch ou guarda de copyright), não o parafraseie. Capture-o por máquina com `archive-posting.mjs <url> --company={company-slug} --report={num}` (o slug no nome do arquivo do report, incluindo `confidential-{agency-slug}`) (`fetch-jd.mjs` imprime o texto de uma vaga de ATS conhecido) e, no lugar do texto, coloque nesta seção **exatamente** `Veja jds/{filename} para o arquivo completo (archive-posting.mjs --report={num}).` — `check-jd-archive.mjs` apenas credita esta frase de ponteiro canônica quando ela resolve de volta para o número daquele report via `findCaptureForReport`; uma captura `jds/{slug}.md` apenas com slug sem número de report não valida aqui. Este fraseado exato importa: a verificação apenas trata uma seção como ponteiro (exigindo resolução) quando a seção não é nada além desta frase — qualquer prosa adicional ao lado dela é lida como o próprio texto arquivado, não um ponteiro, então não misture os dois. Capturas apenas com slug permanecem válidas para `jd-skill-gap.mjs` executado standalone, fora de uma avaliação completa, onde não há report para vincular de volta. `check-jd-archive.mjs` valida que todo `reports/*.md` tem uma forma ou outra e está conectado em `test-all.mjs` — um report sem ambas é uma falha de teste. Uma reformulação não é um arquivo: `check-jd-archive.mjs` não credita...
 
 Nem toda fonte de JD é uma API de ATS escaneável ou mesmo uma URL — algumas só existem como um screenshot colado de uma empresa em um ATS customizado/incomum sem superfície de API. Qualquer texto de data de publicação visível na fonte — `Posted 3 days ago`, uma data explícita, etc. — transcreva-o como a primeira linha da seção arquivada independentemente do formato da fonte (URL, texto colado ou screenshot): `Publicado: {data ou string relativa como mostrada}`, ou `Publicado: não visível na fonte` quando genuinamente ausente. Nunca substitua pelo mtime/data de criação do próprio arquivo do report — é frágil (sobrescrito por edições posteriores, resetado por operações de ferramenta de sync/git) e conceitualmente errado (registra quando o candidato processou o JD, não quando o empregador o publicou).
 
 ### 1b. Embutir cobertura de keywords ATS
 
-Após salvar o report, execute a verificação de cobertura e cole seu bloco `## Keyword Coverage` no report, diretamente abaixo da seção `## Keywords extraídas` (após sua lista de keywords, antes de `## Descrição da Vaga (arquivada verbatim)`):
+Após salvar o report, execute a verificação de cobertura e cole seu bloco `## Keyword Coverage` no report, diretamente abaixo da seção `## Keywords extraídas` (após sua lista de keywords, antes de `## Job Description (archived verbatim)`):
 
 ```bash
 node keyword-match.mjs reports/{###}-{company-slug}-{YYYY-MM-DD}.md
