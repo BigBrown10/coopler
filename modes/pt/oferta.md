@@ -518,7 +518,7 @@ Isto é informação sobre **seu próprio histórico** com a empresa, não sobre
 
 ## Veredito (lead)
 
-Escreva um bloco `## Veredito (lead)` diretamente após o Bloco G e antes de `## Resumo de Riscos`. Ele responde a única pergunta com a qual o leitor abriu o report: devo me candidatar?
+Escreva um bloco `## Veredito (lead)` diretamente após o Bloco G e antes de `## Risk Summary`. Ele responde a única pergunta com a qual o leitor abriu o report: devo me candidatar?
 
 **Derivado, nunca originador.** `final_decision` em `## Machine Summary` é a fonte da verdade. Este bloco reapresenta essa mesma decisão como uma frase humana e nunca introduz uma diferente — se a frase e o campo discordarem, o campo está certo e a frase é o defeito. Escreva o bloco a partir de `final_decision` em vez de ao lado dele, para que o bloco com o qual o leitor começa não possa divergir do campo que um script lê. A chamada em negrito é o valor desse campo no próprio idioma do report: Candidatar-se, Considerar, Pesquisar primeiro, ou Pular.
 
@@ -538,9 +538,9 @@ Uma frase após a chamada em negrito é o orçamento. Um leitor que quiser o rac
 
 ---
 
-## Resumo de Riscos (após o Bloco G)
+## Risk Summary (após o Bloco G)
 
-Feche o corpo do report com um bloco `## Resumo de Riscos` diretamente após o bloco `## Veredito (lead)`, que segue a seção do Bloco G — uma linha por sinal de risco, ordem fixa — para que a pergunta que o candidato realmente faz ("esta empresa é segura para entrar?") seja respondida em uma tela em vez de juntando mentalmente o Bloco A, o Bloco G e um arquivo auxiliar.
+Feche o corpo do report com um bloco `## Risk Summary` diretamente após o bloco `## Veredito (lead)`, que segue a seção do Bloco G — uma linha por sinal de risco, ordem fixa — para que a pergunta que o candidato realmente faz ("esta empresa é segura para entrar?") seja respondida em uma tela em vez de juntando mentalmente o Bloco A, o Bloco G e um arquivo auxiliar.
 
 **Apenas agregação, zero julgamento novo.** Cada linha cita ou referencia o veredito já produzido por seu sinal de origem. O resumo nunca repontua, repondera ou sobrescreve — se uma linha parecer errada, a correção pertence ao sinal de origem, não aqui.
 
@@ -560,7 +560,7 @@ Três estados por linha: `✅ {veredito claro}` / `⚠️ {achado}` / `— não 
 Formato do bloco:
 
 ```markdown
-## Resumo de Riscos
+## Risk Summary
 
 | Sinal | Status |
 |--------|--------|
@@ -636,7 +636,7 @@ Aplique todas as regras de linguagem da seção Professional Writing de `_writin
 
 ## Pós-avaliação
 
-Antes de salvar o report, aplique `modes/_shared.md` → Evidence confidence para o Global Score. Após o Resumo de Riscos, inclua `## Evidência de Pontuação` com uma linha por dimensão de pontuação (`CV match`, `North Star alignment`, `Compensation`, `Cultural signals`, `Red flags`): status de evidência (`supported`, `partial`, `unknown`), fonte concreta ou observação e questão não resolvida. Siga com `**Confiança da evidência:** {High | Medium | Low} — {motivo principal}` e até três prioridades de verificação. Isto é a confiança na evidência da pontuação, separada do tier de legitimidade da vaga do Bloco G. Espelhe os cinco status e prioridades no Machine Summary `score_evidence` e `confidence_gaps` usando o schema canônico em `batch/batch-prompt.md`.
+Antes de salvar o report, aplique `modes/_shared.md` → Evidence confidence para o Global Score. Após o Risk Summary, inclua `## Evidência de Pontuação` com uma linha por dimensão de pontuação (`CV match`, `North Star alignment`, `Compensation`, `Cultural signals`, `Red flags`): status de evidência (`supported`, `partial`, `unknown`), fonte concreta ou observação e questão não resolvida. Siga com `**Confiança da evidência:** {High | Medium | Low} — {motivo principal}` e até três prioridades de verificação. Isto é a confiança na evidência da pontuação, separada do tier de legitimidade da vaga do Bloco G. Espelhe os cinco status e prioridades no Machine Summary `score_evidence` e `confidence_gaps` usando o schema canônico em `batch/batch-prompt.md`.
 
 **SEMPRE** após gerar os blocos A-G:
 
@@ -654,10 +654,10 @@ Salvar avaliação completa em `reports/{###}-{company-slug}-{YYYY-MM-DD}.md`.
 ```markdown
 # Avaliação: {Empresa} — {Cargo}
 
-**Data:** {YYYY-MM-DD}
+**Date:** {YYYY-MM-DD}
 **URL:**
 **Via:** {agência/recrutador, ou — para candidaturas diretas}
-**Arquétipo:** {detectado}
+**Archetype:** {detectado}
 <!-- Quando o cargo corresponde a um dos targets do usuário, nomeie-o. Quando não
      corresponde a nenhum, este campo NÃO é deixado em branco e NÃO é hesitado —
      um campo vazio parece falha da ferramenta, e "possivelmente um híbrido de X e Y"
@@ -668,7 +668,7 @@ Salvar avaliação completa em `reports/{###}-{company-slug}-{YYYY-MM-DD}.md`.
      fazer é substituir um target que o usuário realmente tem. -->
 **Score:** {X/5}
 **Decisão:** {Candidatar | Considerar | Pesquisar primeiro | Não candidatar}
-**Legitimidade:** {High Confidence | Proceed with Caution | Suspicious}
+**Legitimacy:** {High Confidence | Proceed with Caution | Suspicious}
 **Work Auth:** {✅ Patrocina | ➖ Não necessário | ⚠️ Não declarado | ⛔ Sem sponsorship}
 **PDF:** {caminho ou pendente}
 
@@ -703,8 +703,8 @@ Salvar avaliação completa em `reports/{###}-{company-slug}-{YYYY-MM-DD}.md`.
 ## Veredito (lead)
 (a decisão candidatar-se-ou-não em uma frase — reapresenta `final_decision`, veja a seção Veredito acima)
 
-## Resumo de Riscos
-(uma linha por sinal de risco, ordem fixa — veja a seção Resumo de Riscos acima)
+## Risk Summary
+(uma linha por sinal de risco, ordem fixa — veja a seção Risk Summary acima)
 
 ## Evidência de Pontuação
 (cinco dimensões de pontuação, status de evidência e fonte, questões não resolvidas, tier de confiança da evidência e prioridades de verificação)
@@ -724,7 +724,7 @@ Salvar avaliação completa em `reports/{###}-{company-slug}-{YYYY-MM-DD}.md`.
 (o texto completo da vaga, colado verbatim — veja requisito abaixo)
 ```
 
-**Machine Summary (obrigatório):** todo report carrega uma cerca YAML `## Machine Summary` diretamente após o cabeçalho — mesmo schema, nomes exatos de campos e regras do bloco "Machine Summary" em `batch/batch-prompt.md` (não duplique o schema aqui; aquele arquivo é a fonte da verdade). Inclui `advertised_comp`: o valor salarial do próprio JD **verbatim** (ex.: `"80-90k EUR"`), ou `null` quando o JD não declara nada — nunca estimado, nunca substituído por dados de mercado pesquisados. Esta chave alimenta a observação de salário anunciado lida por `node salary-gap.mjs`. Também inclui `risk_summary`: o bloco Resumo de Riscos espelhado como um mapa (schema e valores de enum em `batch/batch-prompt.md`), e `requirement_importance`: a tabela do Bloco B espelhada linha por linha, carregando o tier de evidência, banda de importância e match de cada linha (`[]` quando o JD não gera lista de requisitos utilizável). O limite `inferred` do gate do Bloco B vale no YAML também — `importance` nunca é `critical` ou `high` quando `evidence: inferred`.
+**Machine Summary (obrigatório):** todo report carrega uma cerca YAML `## Machine Summary` diretamente após o cabeçalho — mesmo schema, nomes exatos de campos e regras do bloco "Machine Summary" em `batch/batch-prompt.md` (não duplique o schema aqui; aquele arquivo é a fonte da verdade). Inclui `advertised_comp`: o valor salarial do próprio JD **verbatim** (ex.: `"80-90k EUR"`), ou `null` quando o JD não declara nada — nunca estimado, nunca substituído por dados de mercado pesquisados. Esta chave alimenta a observação de salário anunciado lida por `node salary-gap.mjs`. Também inclui `risk_summary`: o bloco Risk Summary espelhado como um mapa (schema e valores de enum em `batch/batch-prompt.md`), e `requirement_importance`: a tabela do Bloco B espelhada linha por linha, carregando o tier de evidência, banda de importância e match de cada linha (`[]` quando o JD não gera lista de requisitos utilizável). O limite `inferred` do gate do Bloco B vale no YAML também — `importance` nunca é `critical` ou `high` quando `evidence: inferred`.
 
 **Arquivamento do JD (obrigatório, #2789):** todo report DEVE carregar uma seção `## Descrição da Vaga (arquivada verbatim)` com o texto completo da vaga colado como está — nunca resumido, nunca parafraseado. Um cabeçalho `**URL:**` sozinho não é um arquivo: é um ponteiro vivo que apodrece quando a vaga fecha ou é removida, o que confiavelmente acontece em algum momento nas semanas entre a candidatura e uma rodada posterior de entrevista, e não há como recuperar os requisitos originais depois disso. Este é o mecanismo primário, não um fallback — o report é o único artefato garantido de ser escrito e rastreado, diferentemente de um arquivo separado `jds/`. Se o JD for muito longo, ou você não puder citá-lo na íntegra (limite de citação de ferramenta de fetch ou guarda de copyright), não o parafraseie. Capture-o por máquina com `archive-posting.mjs <url> --company={company-slug} --report={num}` (o slug no nome do arquivo do report, incluindo `confidential-{agency-slug}`) (`fetch-jd.mjs` imprime o texto de uma vaga de ATS conhecido) e, no lugar do texto, coloque nesta seção **exatamente** `Veja jds/{filename} para o arquivo completo (archive-posting.mjs --report={num}).` — `check-jd-archive.mjs` apenas credita esta frase de ponteiro canônica quando ela resolve de volta para o número daquele report via `findCaptureForReport`; uma captura `jds/{slug}.md` apenas com slug sem número de report não valida aqui. Este fraseado exato importa: a verificação apenas trata uma seção como ponteiro (exigindo resolução) quando a seção não é nada além desta frase — qualquer prosa adicional ao lado dela é lida como o próprio texto arquivado, não um ponteiro, então não misture os dois. Capturas apenas com slug permanecem válidas para `jd-skill-gap.mjs` executado standalone, fora de uma avaliação completa, onde não há report para vincular de volta. `check-jd-archive.mjs` valida que todo `reports/*.md` tem uma forma ou outra e está conectado em `test-all.mjs` — um report sem ambas é uma falha de teste. Uma reformulação não é um arquivo: `check-jd-archive.mjs` não credita...
 
@@ -751,14 +751,14 @@ Se esta empresa+cargo já estiver no tracker, nunca escreva uma segunda linha ma
 O TSV carrega:
 - Número: o número do report (próximo sequencial). O merge o mantém como o `#` do tracker a menos que esse número já esteja ocupado, caso em que atribui o próximo livre e o imprime (`➕ Add #N`)
 - Data atual
-- Empresa — o empregador FINAL. Se o JD for mediado por agência ("nosso cliente", domínio de agência, nenhum empregador nomeado), PERGUNTE ao usuário por qual agência veio, use `?` como Empresa e coloque um descritor distintivo em Notas (ex.: `fintech, Leeds`). Nunca escreva "Confidencial" — o marcador `?` é invariante de locale e não pode colidir com uma empresa real.
+- Empresa — o empregador FINAL. Se o JD for mediado por agência ("nosso cliente", domínio de agência, nenhum empregador nomeado), PERGUNTE ao usuário por qual agência veio, use `?` como Empresa e coloque um descritor distintivo em Notes (ex.: `fintech, Leeds`). Nunca escreva "Confidencial" — o marcador `?` é invariante de locale e não pode colidir com uma empresa real.
 - Via — a agência/recrutador que o usuário confirmou; omita para candidatura direta. No TSV é uma coluna `via` (veja a especificação de formato TSV). O merge só pode armazená-la em um tracker que tenha coluna Via: quando o usuário confirmou uma agência e o tracker não tem, execute `node merge-tracker.mjs --migrate-via` primeiro, caso contrário o merge avisa e descarta o valor.
 - Vaga
 - Score: copie a Pontuação Global 1–5 já decidida do cabeçalho do report e Machine Summary `score`. Aplique quaisquer regras de pontuação de `modes/_custom.md` ao decidir essa pontuação, não novamente ao escrever o tracker. A–H são seções do report, não notas para tirar média.
 - Status: `Evaluated`
 - PDF: ❌ (ou ✅ se a auto-pipeline gerou PDF)
 - Report: link relativo à raiz `[001](reports/001-company-2026-01-01.md)` (quando mesclado via `merge-tracker.mjs` é normalizado para ser relativo ao próprio diretório do tracker, ex.: `../reports/...`; veja #760)
-- Notas — quando a entrada do pipeline carrega um segmento `| posted: {YYYY-MM-DD}` (escrito pelo scanner a partir de `offer.postedAt` do provider, veja `modes/pipeline.md`), transporte-o como seu próprio segmento final: `…; posted: 2026-08-07`. Este é o único caminho pelo qual a data de publicação chega ao tracker, e a coluna POSTED do dashboard — idade da requisição, "isto ainda está plausivelmente sendo trabalhado?" — lê isso da nota. Copie-o verbatim; quando a entrada não tiver segmento, não escreva nada em vez de inferir uma data, já que a coluna renderiza uma data ausente como `—` e uma adivinhada reportaria uma req de meses como fresca.
+- Notes — quando a entrada do pipeline carrega um segmento `| posted: {YYYY-MM-DD}` (escrito pelo scanner a partir de `offer.postedAt` do provider, veja `modes/pipeline.md`), transporte-o como seu próprio segmento final: `…; posted: 2026-08-07`. Este é o único caminho pelo qual a data de publicação chega ao tracker, e a coluna POSTED do dashboard — idade da requisição, "isto ainda está plausivelmente sendo trabalhado?" — lê isso da nota. Copie-o verbatim; quando a entrada não tiver segmento, não escreva nada em vez de inferir uma data, já que a coluna renderiza uma data ausente como `—` e uma adivinhada reportaria uma req de meses como fresca.
 
 **A linha que o merge escreve** (para referência; você escreve o TSV, não esta linha):
 
@@ -766,11 +766,11 @@ O TSV carrega:
 | # | Data | Empresa | Vaga | Score | Status | PDF | Report |
 ```
 
-Com as colunas opcionais, que só aparecem num tracker que já as tenha: Notas ao final e Via (canal intermediário, #1596) após Empresa.
+Com as colunas opcionais, que só aparecem num tracker que já as tenha: Notes ao final e Via (canal intermediário, #1596) após Empresa.
 
 ```markdown
-| # | Data | Empresa | Vaga | Score | Status | PDF | Report | Notas |
-| # | Data | Empresa | Via | Vaga | Score | Status | PDF | Report | Notas |
+| # | Data | Empresa | Vaga | Score | Status | PDF | Report | Notes |
+| # | Data | Empresa | Via | Vaga | Score | Status | PDF | Report | Notes |
 ```
 
 ### 3. Observações de salário (apenas ask desejado)
