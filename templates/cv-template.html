@@ -277,6 +277,32 @@
     font-weight: 600;
   }
 
+  /* Opt-in via experience[].engagements (#3961): a "Selected engagements"
+     sub-list for a role that bundles several named client/project stints under
+     one umbrella employer (e.g. an independent-consulting entry). The label is
+     not bulleted — only the engagements under it are — so it reads as a
+     sub-heading rather than a peer of the role's own achievements. */
+  .job .sub-label {
+    font-size: 10.5px;
+    font-weight: 600;
+    color: #333;
+    margin-top: 6px;
+    margin-bottom: 4px;
+  }
+
+  .job .sub-list {
+    list-style: disc;
+    padding-left: 34px;
+    margin-top: 0;
+  }
+
+  .job .sub-list li {
+    font-size: 10.5px;
+    line-height: 1.6;
+    color: #333;
+    margin-bottom: 4px;
+  }
+
   /* === PROJECTS === */
   .project {
     margin-bottom: 12px;
@@ -475,6 +501,18 @@
     font-size: 10.5px;
   }
 
+  /* Optional qualifier line under a skill category (#3961) — typically "which
+     of these is working familiarity rather than depth". Its own indented, muted
+     block, so it reads as a deliberate annotation; a line break inside the items
+     text cannot do this once that line wraps on its own. */
+  .skill-note {
+    display: block;
+    padding-left: 14px;
+    color: #666;
+    font-size: 10px;
+    line-height: 1.5;
+  }
+
   /* === PRINT === */
   @media print {
     body {
@@ -498,7 +536,10 @@
   /* Only avoid breaking small atomic units (a cert row, an education line, the
      header, a single competency or skill).  Sections and multi-bullet roles are
      allowed to flow across a page boundary so content packs tight instead of
-     jumping wholesale and leaving large bottom gaps. */
+     jumping wholesale and leaving large bottom gaps. When one entry needs the
+     opposite — usually the last role on a trimmed CV, where a mid-bullet split
+     reads worse than a mostly-empty page above it — set that entry's
+     keepTogether rather than changing this default (see below). */
   .header,
   .edu-item,
   .cert-item,
@@ -512,6 +553,15 @@
   .job {
     page-break-inside: var(--job-break-inside, auto);
     break-inside: var(--job-break-inside, auto);
+  }
+
+  /* Opt-in per entry via experience[].keepTogether (#3961). Declared AFTER the
+     .job rule above on purpose: both are one class deep, so a declaration
+     before it would lose to `.job`'s `auto` on every entry that carries
+     keepTogether. */
+  .job--keep-together {
+    break-inside: avoid;
+    page-break-inside: avoid;
   }
 
   /* Opt-in — see the --project-break-inside default above. */

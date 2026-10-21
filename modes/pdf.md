@@ -81,6 +81,7 @@ Run `npm run jd:similarity -- {bundle-root}/jd/current.md {bundle-root}/jd/previ
     - The rendered PDF has a two-page warning threshold by default. `--max-pages=N` accepts a positive integer; pass `--max-pages=1` when the user or market prefers a one-page CV.
     - If the rendered PDF exceeds its threshold, generation warns loudly with the actual and allowed page counts plus trimming guidance, then reports and indexes the unchanged PDF so existing longer-CV flows keep working.
     - Pass `--strict-pages` only when the user or market requires a hard limit. Strict overflow leaves the draft available for inspection but does not report or index it as successful; trim lower-priority content and rerun.
+    - Pass `--running-footer` when the user wants the candidate identified on every page ("Jane Smith · jane@example.com" on the left, "2 sur 3" / "2 of 3" on the right). It is a Chromium print footer drawn inside the bottom margin the template already reserves, so it adds no page content and a render without the flag is unchanged. The count word follows the document's `lang` (`fr` → `sur`, otherwise `of`). Single-render only: `--batch` does not carry the flag.
     - Generation fails when Work Experience is not newest-first, quoting the dates of the role that starts later than the one above it. Return to Step 17 with the roles in reverse-chronological order, rebuild the HTML, and re-run the fact gate before rendering; tailor through the summary, competencies, and bullet selection, never by moving roles. Pass `--allow-nonchronological`, which turns the failure into a warning, only when the user explicitly asks for a non-chronological CV.
 21a. **ATS variant — off by default, opt-in only.** Run this step if and only if the invocation carried `--ats` (`/career-ops pdf --ats`, or the same flag on a natural-language request) or `modes/_custom.md` turns it on as a house rule; otherwise skip straight to Step 22 without prompting. It runs after Step 21 so the payload is final (any Step 20 rewrites are already in it) and the styled CV is done: the variant is an extra, and a failure here never touches the styled HTML/PDF.
     - **This is not a template swap.** The `ats` template owns the DOM, not the payload. `competencies[]` renders as tags separated only by CSS gap, under a header parsers don't recognise, so it gets dropped whole whatever the template looks like. Fold the payload first, and fold only this copy; the styled payload keeps its competency grid:
@@ -198,7 +199,8 @@ Write a JSON file with this structure, then run `node build-cv-html.mjs <input.j
     "education": "Education",
     "certifications": "Certifications",
     "awards": "Awards & Honors",
-    "skills": "Skills"
+    "skills": "Skills",
+    "engagements": "Selected engagements"
   },
   "summary": "Personalized summary with JD keywords injected (honest vs cv.md).",
   "competencies": ["RAG Pipelines", "LLMOps", "Kubernetes & Docker"],
@@ -209,7 +211,12 @@ Write a JSON file with this structure, then run `node build-cv-html.mjs <input.j
       "location": "Remote",
       "context": "Early-stage startup, ~40 people; acquired by BigCo in 2023.",
       "dates": "June 2022 - Present",
-      "bullets": ["Achievement bullet with JD keywords injected", "Another quantified-impact bullet"]
+      "keepTogether": true,
+      "bullets": ["Achievement bullet with JD keywords injected", "Another quantified-impact bullet"],
+      "engagements": [
+        { "name": "Bank A", "detail": "Payments platform migration; 14 services." },
+        { "name": "Retailer B", "detail": "Checkout rebuild, 3 markets." }
+      ]
     }
   ],
   "projects": [
@@ -226,7 +233,7 @@ Write a JSON file with this structure, then run `node build-cv-html.mjs <input.j
   ],
   "skills": [
     { "category": "Languages", "items": "Python, JavaScript, C++" },
-    { "category": "Frameworks", "items": ["FastAPI", "React", "PyTorch"] }
+    { "category": "Frameworks", "items": ["FastAPI", "React", "PyTorch"], "note": "working familiarity, not depth" }
   ]
 }
 ```
@@ -251,12 +258,12 @@ Write a JSON file with this structure, then run `node build-cv-html.mjs <input.j
 | `sections` | object | Optional localized section titles; any omitted key falls back to the English default shown above. |
 | `summary` | string | Personalized summary with keywords. Supports `**…**` emphasis (see **Markdown bold** below). |
 | `competencies` | string[] | 6-8 keyword phrases → competency tags. |
-| `experience[]` | object | `company`, `role`, `location` (optional), `context` (optional), `dates`, `bullets` (reordered, keyword-injected; `**…**` emphasis supported). `context` is an un-bulleted italic line rendered directly under the role, for one line of background about the company (stage, size, an acquisition), not an achievement. Use only facts already in `cv.md`: when it states none for that role, omit `context` rather than write one. Keep it short; keep achievements in `bullets`. Optional section — omit the key or pass `[]` and the whole block is dropped, header included. Only for candidates with no professional history to list (students, new graduates, career changers); never drop it to hide a gap. |
+| `experience[]` | object | `company`, `role`, `location` (optional), `context` (optional), `dates`, `bullets` (reordered, keyword-injected; `**…**` emphasis supported), `engagements` (optional consulting sub-list — see **Consulting engagements, page breaks, and qualifiers**), `keepTogether` (optional boolean, default `false`). `context` is an un-bulleted italic line rendered directly under the role, for one line of background about the company (stage, size, an acquisition), not an achievement. Use only facts already in `cv.md`: when it states none for that role, omit `context` rather than write one. Keep it short; keep achievements in `bullets`. Optional section — omit the key or pass `[]` and the whole block is dropped, header included. Only for candidates with no professional history to list (students, new graduates, career changers); never drop it to hide a gap. |
 | `projects[]` | object | `name`, `url` (optional project/repo link), `badge` (optional), `tech` (optional), `description` (a `bullets` array is also accepted and joined into the description line). |
 | `education[]` | object | `title` (degree), `org` (institution), `location` (optional, city/state), `year`, `description` (optional). |
 | `certifications[]` | object | `title`, `org`, `year`. |
 | `awards[]` | object | `title` (award name), `org` (issuing body, optional), `year` (optional). Optional section — omit the key or pass `[]` and the whole block is dropped, header included. Use it for competitive or academic distinctions (olympiad medals, hackathon wins, dean's list) that carry more signal than a thin experience section. |
-| `skills[]` | object | `items` (**required**): a non-blank comma-separated string, or a non-empty array of non-blank strings — every element must be text, since the builder joins the whole array. `category` (optional): omitted, the line renders without its prefix. |
+| `skills[]` | object | `items` (**required**): a non-blank comma-separated string, or a non-empty array of non-blank strings — every element must be text, since the builder joins the whole array. `category` (optional): omitted, the line renders without its prefix. `note` (optional): one qualifier line under the items (e.g. "working familiarity, not depth"); keep claims in it as honest as the items themselves. |
 | `consent` | string | Opt-in GDPR/RODO consent footer text. Empty/absent emits **no visible footer** (the `.cv-consent:empty { display: none }` CSS rule hides the empty div and its border-top), so existing CVs are unchanged. Mirrors the `{{PHOTO}}` opt-in slot pattern (#264). |
 
 `build-cv-html.mjs` errors out (non-zero exit) if any template placeholder is left unresolved, so a malformed payload fails loudly instead of shipping a broken CV. Run `node build-cv-html.mjs --test` for a self-test render.
@@ -268,6 +275,27 @@ Write a JSON file with this structure, then run `node build-cv-html.mjs <input.j
 - **A top-level section name the builder does not read → warning**, naming the nearest known key. A payload with `educations` instead of `education` used to validate clean and drop the section silently; it now says so.
 
 Do **not** substitute the LaTeX builder's vocabulary — `institution`/`degree`/`dates`/`coursework` is the `modes/latex.md` education schema, **not** this one — nor `employer` for a company or `name` for a certification. Such an entry used to render as an empty block while the report still said `"valid": true`, and CVs went out with no education section at all. It is now rejected by name. When in doubt, check `counts.educationEntries` (and its siblings) in the JSON report: a zero there means the section is empty in the PDF.
+
+### Consulting engagements, page breaks, and qualifiers
+
+Three optional fields cover CVs that the flat experience schema flattens badly (#3961). All three are off by default: a payload that uses none of them renders exactly as it did before.
+
+**`experience[].engagements` — named stints under one umbrella employer.** Consulting, agencies, and staff-augmentation roles often list one employer with several client engagements. Folded into `bullets` they read as disconnected achievements; a sub-list keeps them grouped under the role:
+
+```json
+"engagements": [
+  { "name": "Bank A", "detail": "Payments platform migration; 14 services." },
+  { "name": "Retailer B", "detail": "Checkout rebuild, 3 markets." }
+]
+```
+
+`name` renders bold, `detail` follows it on the same line. The list is introduced by a small, un-bulleted label (`Selected engagements` by default; override it with `sections.engagements` for other languages). Each engagement must be a fact already in `cv.md` — client names are only as safe as the candidate's own record of them, and a confidential engagement is better described by sector than by name.
+
+**`experience[].keepTogether` — opt-in page-break control.** A job entry normally flows across a page break, which packs the CV tighter. Set `keepTogether: true` on a short entry (header plus two or three bullets) so the role header cannot be orphaned at the bottom of a page. Do not set it on a long role: the whole entry moves to the next page and can leave a large empty gap.
+
+**Multiline text.** `summary`, `skills[].items`, `skills[].note`, and `engagements[].detail` may contain literal newlines — a payload `"items": ["TypeScript", "SQL\nPL/pgSQL"]` renders the break, and the text is escaped before the newline becomes `<br>`. `bullets` are already one `<li>` each; do not put newlines in them.
+
+**`skills[].note` — a qualifier line, not a fourth list.** When a skill line mixes depth with familiarity, say so on its own line instead of burying it in `items`: `"note": "working familiarity, not depth"`. It renders under the items at a smaller size, and an empty or absent note emits nothing.
 
 ### Markdown bold
 

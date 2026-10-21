@@ -76,6 +76,7 @@ const DEFAULT_SECTION_TITLES = {
   awards: 'Awards & Honors',
   interests: 'Interests',
   skills: 'Skills',
+  engagements: 'Selected engagements',
 };
 
 // Escape user text for HTML text/attribute context. Covers the five characters
@@ -94,6 +95,16 @@ function escapeHtml(text) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
+}
+
+// Multiline free text (#3961): escaping runs FIRST, then a literal newline the
+// payload author typed becomes a <br>, so a "<script>" in `summary` stays inert
+// even once it sits next to real markup. A blank line (\n\n) therefore reads as
+// a paragraph gap without a second pass. Used by `summary` and the string form
+// of `skills[].items`, where a 3–4 line block otherwise renders as a wall of
+// text in the six-second scan.
+function renderMultilineText(text) {
+  return escapeHtml(text).replace(/\r\n?/g, '\n').replace(/\n/g, '<br>');
 }
 
 // Normalize a URL: only allow the schemes the template's contact row uses,
@@ -419,7 +430,25 @@ function buildCompetencies(entries, partial) {
     .join('\n      ');
 }
 
-function buildExperience(entries, partial) {
+// experience[].engagements (#3961): a "Selected engagements" sub-list for one
+// role that bundles several named client/project stints under an umbrella
+// employer — normal in consulting, where flattening them into ordinary bullets
+// makes them read as unrelated achievements. The label is not bulleted (it is a
+// sub-heading, not a peer of the role's own bullets); the engagements under it
+// are. Returns '' when there is nothing to render, so callers can splice it in
+// without a presence check of their own.
+function buildEngagementsBlock(engagements, label = DEFAULT_SECTION_TITLES.engagements) {
+  if (!Array.isArray(engagements)) return '';
+  const items = engagements
+    .filter((en) => en && typeof en === 'object' && (en.name || en.detail))
+    .map((en) => `    <li><strong>${escapeHtml(en.name || '')}</strong>${renderMultilineText(en.detail || '')}</li>`)
+    .join('\n');
+  if (!items) return '';
+  return `\n    <div class="sub-label">${escapeHtml(label)}</div>`
+    + `\n    <ul class="sub-list">\n${items}\n    </ul>`;
+}
+
+function buildExperience(entries, partial, engagementsLabel = DEFAULT_SECTION_TITLES.engagements) {
   if (!Array.isArray(entries) || entries.length === 0) return '';
   if (!partial) {
     return entries.filter(e => hasRequiredFields(e, 'experience', 'html')).map(e => {
@@ -432,7 +461,11 @@ function buildExperience(entries, partial) {
       const context = e.context
         ? `\n    <div class="job-context">${escapeHtml(e.context)}</div>`
         : '';
-      return `<div class="job">
+      // Opt-in per entry (#3961); off by default because a multi-bullet role is
+      // deliberately allowed to flow across a page break so the CV packs tight.
+      const jobClass = e.keepTogether ? ' job--keep-together' : '';
+      const engagements = buildEngagementsBlock(e.engagements, engagementsLabel);
+      return `<div class="job${jobClass}">
     <div class="job-header">
       <span class="job-company">${escapeHtml(e.company)}</span>
       <span class="job-period">${escapeHtml(e.dates || e.period || '')}</span>
@@ -440,7 +473,7 @@ function buildExperience(entries, partial) {
     <div class="job-role">${escapeHtml(e.role)}</div>${context}${location}
     <ul>
 ${bullets}
-    </ul>
+    </ul>${engagements}
   </div>`;
     }).join('\n  ');
   }
@@ -461,6 +494,8 @@ ${bullets}
       LOCATION: escapeHtml(e.location || ''),
       CONTEXT: escapeHtml(e.context || ''),
       BULLETS: bullets,
+      JOB_CLASS: e.keepTogether ? ' job--keep-together' : '',
+      ENGAGEMENTS: buildEngagementsBlock(e.engagements, engagementsLabel),
     }, blockValues);
   }).join('\n  ');
 }
@@ -660,7 +695,13 @@ function buildSkills(categories, partial) {
       const cat = c.category
         ? `<span class="skill-category">${escapeHtml(c.category)}:</span> `
         : '';
-      return `    <div class="skill-item">${cat}${escapeHtml(joinItems(c.items))}</div>`;
+      // A qualifier line ("working familiarity", not depth) gets its own block
+      // rather than a "\n" inside the items text: once the items line wraps on
+      // its own, an intentional break and an accidental one look identical.
+      const note = c.note
+        ? `<span class="skill-note">${renderMultilineText(c.note)}</span>`
+        : '';
+      return `    <div class="skill-item">${cat}${renderMultilineText(joinItems(c.items))}${note}</div>`;
     }).join('\n');
     return `<div class="skills-grid">\n${items}\n  </div>`;
   }
@@ -671,10 +712,12 @@ function buildSkills(categories, partial) {
   const items = kept.map(c => {
     const blockValues = new Map([
       ['CATEGORY_BLOCK', { value: escapeHtml(c.category || ''), present: Boolean(c.category) }],
+      ['NOTE_BLOCK', { value: renderMultilineText(c.note || ''), present: Boolean(c.note) }],
     ]);
     return fillEntry(entryTemplate, blocks, {
       CATEGORY:    escapeHtml(c.category || ''),
-      ITEMS_TEXT:  escapeHtml(joinItems(c.items)),
+      ITEMS_TEXT:  renderMultilineText(joinItems(c.items)),
+      NOTE:        renderMultilineText(c.note || ''),
     }, blockValues);
   }).join('\n');
   return `<div class="skills-grid">\n${items}\n  </div>`;
@@ -747,11 +790,11 @@ function renderReport(payload, partials) {
     PAGE_WIDTH: pageWidth,
     NAME: escapeHtml(candidate.name || ''),
     SECTION_SUMMARY: escapeHtml(sectionTitles.summary),
-    SUMMARY_TEXT: escapeHtml(payload.summary),
+    SUMMARY_TEXT: renderMultilineText(payload.summary),
     SECTION_COMPETENCIES: escapeHtml(sectionTitles.competencies),
     COMPETENCIES: buildCompetencies(payload.competencies, partials.get('competencies')),
     SECTION_EXPERIENCE: escapeHtml(sectionTitles.experience),
-    EXPERIENCE: buildExperience(payload.experience, partials.get('experience')),
+    EXPERIENCE: buildExperience(payload.experience, partials.get('experience'), sectionTitles.engagements),
     SECTION_PROJECTS: escapeHtml(sectionTitles.projects),
     PROJECTS: buildProjects(payload.projects, partials.get('projects')),
     SECTION_EDUCATION: escapeHtml(sectionTitles.education),
@@ -1183,6 +1226,119 @@ async function runSelfTest() {
   // keeps its capital), and escaped like every other free-text field.
   if (!html.includes('Reading sci-fi &amp; fantasy, hiking, chess')) {
     console.error('Self-test failed: Interests did not render as an escaped, comma-joined, sentence-cased line');
+    process.exit(1);
+  }
+
+  // Guard the opt-in payload options added for #3961. Each is invisible in the
+  // base sample above, so every case below also asserts the ABSENT side — an
+  // option that changes an existing payload's output would break the promise
+  // that all five are additive.
+
+  // Multi-paragraph summary: a literal newline becomes a <br>, and escaping
+  // still runs first, so a "<script>" typed into the summary cannot survive as
+  // markup just because it now sits next to real <br>. Case-insensitive and
+  // prefix-only: a regression emitting <SCRIPT> or <script src=…> must fail too.
+  const multilineSummaryHtml = renderHtml(template, {
+    ...sample,
+    summary: 'First line.\nSecond line.\n\nSecond paragraph with a <script> tag.',
+  }, TEMPLATE_PATH);
+  if (!multilineSummaryHtml.includes('First line.<br>Second line.<br><br>Second paragraph')) {
+    console.error('Self-test failed: summary newlines did not render as <br>/<br><br>');
+    process.exit(1);
+  }
+  if (!multilineSummaryHtml.includes('&lt;script&gt; tag') || /<script/i.test(multilineSummaryHtml)) {
+    console.error('Self-test failed: summary escaping did not run before the newline-to-<br> conversion');
+    process.exit(1);
+  }
+  if (html.includes('<br>')) {
+    console.error('Self-test failed: a summary without newlines gained a <br>');
+    process.exit(1);
+  }
+
+  // skills[].note: an opt-in qualifier line as its own .skill-note block,
+  // escaped like every other free-text field. The array form of items stays
+  // comma-joined, so a "\n" inside an element is not a line break.
+  const skillsNoteHtml = renderHtml(template, {
+    ...sample,
+    skills: [{
+      category: 'Cloud',
+      items: ['Docker', 'Kubernetes'],
+      note: '**Working familiarity:** Terraform <Cloud>',
+    }],
+  }, TEMPLATE_PATH);
+  if (!skillsNoteHtml.includes('class="skill-note"')
+    || !skillsNoteHtml.includes('**Working familiarity:** Terraform &lt;Cloud&gt;')) {
+    console.error('Self-test failed: skills[].note did not render an escaped .skill-note block');
+    process.exit(1);
+  }
+  if (!skillsNoteHtml.includes('Docker, Kubernetes')) {
+    console.error('Self-test failed: skills[].items array is no longer comma-joined');
+    process.exit(1);
+  }
+  if (html.includes('class="skill-note"')) {
+    console.error('Self-test failed: .skill-note rendered when skills[].note was not set');
+    process.exit(1);
+  }
+
+  // keepTogether: true adds the break-avoiding class; absent/false renders the
+  // same class attribute the base sample has, with no dangling space.
+  const keepTogetherHtml = renderHtml(template, {
+    ...sample,
+    experience: [{ ...sample.experience[0], keepTogether: true }],
+  }, TEMPLATE_PATH);
+  if (!keepTogetherHtml.includes('class="job job--keep-together"')) {
+    console.error('Self-test failed: experience[].keepTogether did not add job--keep-together');
+    process.exit(1);
+  }
+  if (html.includes('class="job job--keep-together"')) {
+    console.error('Self-test failed: job--keep-together rendered when keepTogether was not set');
+    process.exit(1);
+  }
+
+  // engagements: a non-bulleted label plus one bold-name <li> per engagement,
+  // escaped; the label follows the same sections.* override as every other
+  // section title, so a French CV is not stuck with the English default.
+  const engagementsHtml = renderHtml(template, {
+    ...sample,
+    experience: [{
+      ...sample.experience[0],
+      engagements: [{ name: 'Acme <Co>', detail: ' (2020–2021): built the thing' }],
+    }],
+  }, TEMPLATE_PATH);
+  if (!engagementsHtml.includes('class="sub-label">Selected engagements<')
+    || !engagementsHtml.includes('<strong>Acme &lt;Co&gt;</strong> (2020–2021): built the thing')) {
+    console.error('Self-test failed: experience[].engagements did not render the escaped sub-list');
+    process.exit(1);
+  }
+  if (html.includes('class="sub-label"')) {
+    console.error('Self-test failed: sub-label rendered when experience[].engagements was not set');
+    process.exit(1);
+  }
+  const localizedEngagementsHtml = renderHtml(template, {
+    ...sample,
+    sections: { engagements: 'Mandats sélectionnés' },
+    experience: [{ ...sample.experience[0], engagements: [{ name: 'Acme', detail: ': delivery' }] }],
+  }, TEMPLATE_PATH);
+  if (!localizedEngagementsHtml.includes('class="sub-label">Mandats sélectionnés<')) {
+    console.error('Self-test failed: sections.engagements did not override the sub-label text');
+    process.exit(1);
+  }
+
+  // The new keys must pass the strict key validator from #3523 — an option the
+  // builder reads but the schema does not know is reported as unrecognised and
+  // silently ignored, which is the exact failure that check exists to prevent.
+  const extendedOptions = {
+    ...sample,
+    experience: [{
+      ...sample.experience[0],
+      keepTogether: true,
+      engagements: [{ name: 'Acme', detail: ': delivery' }],
+    }],
+    skills: [{ category: 'Cloud', items: 'Docker', note: 'working familiarity' }],
+  };
+  const extendedReport = validatePayload(extendedOptions, 'html');
+  if (extendedReport.errors.length || extendedReport.warnings.length) {
+    console.error(`Self-test failed: #3961 keys rejected by the payload schema: ${JSON.stringify(extendedReport)}`);
     process.exit(1);
   }
 

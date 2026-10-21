@@ -4,7 +4,7 @@
  * generate-pdf.mjs — HTML → PDF via Playwright
  *
  * Usage:
- *   node career-ops/generate-pdf.mjs <input.html> <output.pdf> [--format=letter|a4] [--country=XX] [--report=NNN] [--kind=cv|cover] [--allow-reorder] [--allow-nonchronological] [--max-pages=N] [--strict-pages] [--skip-fact-check]
+ *   node career-ops/generate-pdf.mjs <input.html> <output.pdf> [--format=letter|a4] [--country=XX] [--report=NNN] [--kind=cv|cover] [--allow-reorder] [--allow-nonchronological] [--max-pages=N] [--strict-pages] [--running-footer] [--skip-fact-check]
  *   node career-ops/generate-pdf.mjs --batch=<manifest.json> [--format=letter|a4] [--country=XX] [--allow-reorder] [--allow-nonchronological] [--max-pages=N] [--strict-pages] [--skip-fact-check]
  *
  * --batch renders every document in a JSON manifest (an array of
@@ -35,6 +35,13 @@
  * The actual page count is checked after Chromium writes the PDF; overflow
  * warns with trimming guidance by default. --strict-pages turns that warning
  * into a hard rejection without publishing the render as successful.
+ *
+ * --running-footer prints a small footer on every page — name, one contact
+ * method and "N of TOTAL" — so a page separated from the rest of a forwarded
+ * CV can still be traced back and the reader knows one is missing (#3961).
+ * Off by default; a one-page CV simply repeats the header information. The
+ * "of" wording follows the document's own <html lang="">: fr reads "sur".
+ * Single-render path only.
  *
  * Requires: @playwright/test (or playwright) installed.
  * Uses Chromium headless to render the HTML and produce a clean, ATS-parseable PDF.
@@ -272,7 +279,13 @@ function normalizeTextForATS(html) {
     t = t.replace(/[\u2018\u2019\u201A\u201B]/g, () => { bump('smart-single-quote', 1); return "'"; });
     t = t.replace(/\u2026/g, () => { bump('ellipsis', 1); return '...'; });
     t = t.replace(/[\u200B\u200C\u200D\u2060\uFEFF]/g, () => { bump('zero-width', 1); return ''; });
-    t = t.replace(/\u00A0/g, () => { bump('nbsp', 1); return ' '; });
+    // A stray/pasted NBSP is flattened to a normal space (some ATS text
+    // extractors mis-tokenize U+00A0 as a non-space, gluing the words either
+    // side of it together) — EXCEPT immediately before :;!? , which is French
+    // typographic convention (espace insécable, #3961) and has to reach
+    // Chromium's layout engine intact: this pass runs before page.setContent(),
+    // so an NBSP flattened here can never become unbreakable again.
+    t = t.replace(/\u00A0(?![:;!?])/g, () => { bump('nbsp', 1); return ' '; });
     // Arrows often stripped by PDF text extractors \u2014 replace with ASCII for ATS safety.
     // Consume surrounding whitespace to avoid double-spacing in output.
     t = t.replace(/\s*\u2192\s*/g, () => { bump('right-arrow', 1); return ' to '; });
@@ -1575,6 +1588,7 @@ async function generatePDF() {
   // lib/page-format.mjs, which ranks it below the user's config/profile.yml.
   let inputPath, outputPath, format = null, country = null, reportNum = '', allowReorder = false, allowNonChronological = false;
   let maxPages = 2, maxPagesInput = '2', strictPages = false, batchManifestPath = null;
+  let runningFooter = false;
 
   for (const arg of args) {
     if (arg.startsWith('--format=')) {
@@ -1617,6 +1631,8 @@ async function generatePDF() {
       allowNonChronological = true;
     } else if (arg === '--strict-pages') {
       strictPages = true;
+    } else if (arg === '--running-footer') {
+      runningFooter = true;
     } else if (arg === '--skip-fact-check') {
       skipFactCheck = true;
     } else if (!inputPath) {
@@ -1704,7 +1720,7 @@ async function generatePDF() {
   }
 
   if (!inputPath || !outputPath) {
-    console.error('Usage: node generate-pdf.mjs <input.html> <output.pdf> [--format=letter|a4] [--country=XX] [--report=NNN] [--kind=cv|cover] [--allow-reorder] [--allow-nonchronological] [--max-pages=N] [--strict-pages] [--skip-fact-check]');
+    console.error('Usage: node generate-pdf.mjs <input.html> <output.pdf> [--format=letter|a4] [--country=XX] [--report=NNN] [--kind=cv|cover] [--allow-reorder] [--allow-nonchronological] [--max-pages=N] [--strict-pages] [--running-footer] [--skip-fact-check]');
     console.error('   or: node generate-pdf.mjs --batch=<manifest.json> [--format=letter|a4] [--country=XX] [--allow-reorder] [--allow-nonchronological] [--max-pages=N] [--strict-pages] [--skip-fact-check]');
     console.error('');
     console.error('Batch mode renders every document in the JSON manifest (an array of');
@@ -1799,6 +1815,7 @@ async function generatePDF() {
     inputPath,
     maxPages,
     strictPages,
+    runningFooter,
     styleTokens: readStyleTokens(workspaceProfilePath()),
   });
 }
@@ -2106,6 +2123,53 @@ export async function renderHtmlToPdf(html, outputPath, opts = {}) {
 }
 
 /**
+ * Build the Chromium footer template for --running-footer (#3961): candidate
+ * name, one contact method and "N of TOTAL", so a page that gets separated from
+ * the rest of a forwarded CV can still be traced back and the reader knows one
+ * is missing.
+ *
+ * Identity is read off the rendered document rather than passed in, so it
+ * matches whatever the CV actually shows (a template pack may reorder or
+ * rename header fields) and follows the payload's own `lang` for the "of"
+ * wording. The footer is Chromium print chrome, so its markup is a string the
+ * print engine parses: every value read from the page is escaped here, and the
+ * font-size is explicit because header/footer templates otherwise render at
+ * the browser's 0px default.
+ */
+function escapeFooterText(value) {
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+async function runningFooterTemplate(page) {
+  const identity = await page.evaluate(() => {
+    const textOf = (el) => (el && el.textContent ? el.textContent.trim() : '');
+    const contact = (scheme) => textOf(document.querySelector(`.contact-row a[href^="${scheme}"]`));
+    return {
+      name: textOf(document.querySelector('.header h1')),
+      email: contact('mailto:'),
+      phone: contact('tel:'),
+      lang: (document.documentElement.getAttribute('lang') || '').slice(0, 2).toLowerCase(),
+    };
+  });
+  const line = [identity.name, identity.email || identity.phone]
+    .filter(Boolean)
+    .map(escapeFooterText)
+    .join(' &middot; ');
+  // French typography spaces the count as "2 sur 3"; everything else keeps "of".
+  const ofWord = identity.lang === 'fr' ? 'sur' : 'of';
+  return '<div style="width: 100%; padding: 0 0.6in; box-sizing: border-box; '
+    + 'display: flex; justify-content: space-between; '
+    + 'font-family: Arial, Helvetica, sans-serif; font-size: 8px; color: #888;">'
+    + `<span>${line}</span>`
+    + `<span><span class="pageNumber"></span> ${ofWord} <span class="totalPages"></span></span>`
+    + '</div>';
+}
+
+/**
  * Render one already-normalized HTML document to a PDF on an already-launched
  * browser. This is the page-level half of the render — it owns the per-document
  * work (theme/print/font injection, temp file, page, PDF, page-budget, manifest)
@@ -2127,6 +2191,7 @@ export async function renderHtmlToPdf(html, outputPath, opts = {}) {
  *   inputPath?: string,
  *   maxPages?: number,
  *   strictPages?: boolean,
+ *   runningFooter?: boolean,
  *   styleTokens?: object
  * }} [opts]
  * @returns {Promise<{outputPath: string, pageCount: number, size: number}>}
@@ -2219,17 +2284,34 @@ async function renderInPage(browser, html, outputPath, opts = {}) {
     // Wait for fonts and images to settle
     await page.evaluate(() => document.fonts.ready);
 
-    // Generate PDF
-    const pdfBuffer = await page.pdf({
-      printBackground: true,
-      margin: {
-        top: '0',
-        right: '0',
-        bottom: '0',
-        left: '0',
-      },
-      preferCSSPageSize: true,
-    });
+    // Generate PDF. The running footer (opt-in, #3961) is a Chromium print
+    // feature, not page markup: one header/footer template is applied to every
+    // page, with `pageNumber`/`totalPages` substituted by the print engine, so
+    // "N of TOTAL" needs no page count of our own and no second file. It draws
+    // inside the bottom margin, which the template's own @page rule already
+    // reserves (0.6in), so the body geometry is untouched and a payload without
+    // the flag renders byte-identically to before.
+    let pdfBuffer;
+    if (opts.runningFooter) {
+      pdfBuffer = await page.pdf({
+        printBackground: true,
+        preferCSSPageSize: true,
+        displayHeaderFooter: true,
+        headerTemplate: '<span></span>',
+        footerTemplate: await runningFooterTemplate(page),
+      });
+    } else {
+      pdfBuffer = await page.pdf({
+        printBackground: true,
+        margin: {
+          top: '0',
+          right: '0',
+          bottom: '0',
+          left: '0',
+        },
+        preferCSSPageSize: true,
+      });
+    }
 
     // Write PDF only after rendering has completed. Renderer cleanup still runs
     // if an injected browser fails before producing a buffer. The atomic write
@@ -2351,4 +2433,4 @@ if (isMain) {
   });
 }
 
-export { normalizeTextForATS, sectionKey };
+export { normalizeTextForATS, sectionKey, escapeFooterText, runningFooterTemplate };

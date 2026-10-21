@@ -327,6 +327,36 @@ sections: all
     color: #2c3e50;
   }
 
+  /* Optional qualifier line under a skill category (#3961); see
+     .skill-note in cv-template.html for the rationale. */
+  .skill-note {
+    display: block;
+    padding-left: 14px;
+    color: #555;
+  }
+
+  /* Opt-in via experience[].engagements (#3961); see cv-template.html. */
+  .job .sub-label {
+    font-size: 10.5px;
+    font-weight: 600;
+    color: #2c3e50;
+    margin-top: 6px;
+    margin-bottom: 4px;
+  }
+
+  .job .sub-list {
+    list-style: disc;
+    padding-left: 34px;
+    margin-top: 0;
+  }
+
+  .job .sub-list li {
+    font-size: 10.5px;
+    line-height: 1.6;
+    color: #333;
+    margin-bottom: 3px;
+  }
+
   /* PAGE BREAK CONTROL */
   .header,
   .edu-item,
@@ -341,6 +371,13 @@ sections: all
   .job {
     page-break-inside: var(--job-break-inside, avoid);
     break-inside: var(--job-break-inside, avoid);
+  }
+
+  /* Opt-in per entry via experience[].keepTogether (#3961). Declared after the
+     .job rule above so it wins on equal specificity. */
+  .job--keep-together {
+    break-inside: avoid;
+    page-break-inside: avoid;
   }
 
   /* Opt-in — see the --project-break-inside default above. */
