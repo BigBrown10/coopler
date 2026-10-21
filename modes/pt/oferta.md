@@ -753,7 +753,7 @@ O TSV carrega:
 - Data atual
 - Empresa — o empregador FINAL. Se o JD for mediado por agência ("nosso cliente", domínio de agência, nenhum empregador nomeado), PERGUNTE ao usuário por qual agência veio, use `?` como Empresa e coloque um descritor distintivo em Notas (ex.: `fintech, Leeds`). Nunca escreva "Confidencial" — o marcador `?` é invariante de locale e não pode colidir com uma empresa real.
 - Via — a agência/recrutador que o usuário confirmou; omita para candidatura direta. No TSV é uma coluna `via` (veja a especificação de formato TSV). O merge só pode armazená-la em um tracker que tenha coluna Via: quando o usuário confirmou uma agência e o tracker não tem, execute `node merge-tracker.mjs --migrate-via` primeiro, caso contrário o merge avisa e descarta o valor.
-- Cargo
+- Vaga
 - Score: copie a Pontuação Global 1–5 já decidida do cabeçalho do report e Machine Summary `score`. Aplique quaisquer regras de pontuação de `modes/_custom.md` ao decidir essa pontuação, não novamente ao escrever o tracker. A–H são seções do report, não notas para tirar média.
 - Status: `Evaluated`
 - PDF: ❌ (ou ✅ se a auto-pipeline gerou PDF)
@@ -763,13 +763,14 @@ O TSV carrega:
 **A linha que o merge escreve** (para referência; você escreve o TSV, não esta linha):
 
 ```markdown
-| # | Data | Empresa | Cargo | Score | Status | PDF | Report | Notas |
+| # | Data | Empresa | Vaga | Score | Status | PDF | Report |
 ```
 
-Com a coluna opcional Via (canal intermediário, #1596) após Empresa:
+Com as colunas opcionais, que só aparecem num tracker que já as tenha: Notas ao final e Via (canal intermediário, #1596) após Empresa.
 
 ```markdown
-| # | Data | Empresa | Via | Cargo | Score | Status | PDF | Report | Notas |
+| # | Data | Empresa | Vaga | Score | Status | PDF | Report | Notas |
+| # | Data | Empresa | Via | Vaga | Score | Status | PDF | Report | Notas |
 ```
 
 ### 3. Observações de salário (apenas ask desejado)
